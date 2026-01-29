@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from auth import login_user
 
 app = Flask(__name__)
 CORS(app)
@@ -12,7 +13,7 @@ def home():
     return "Backend running"
 
 # --------------------
-# Login Route (Stub)
+# Login Route
 # --------------------
 @app.route("/login", methods=["POST"])
 def login():
@@ -21,14 +22,22 @@ def login():
     if not data:
         return jsonify({"error": "invalid request"}), 400
 
-    # Temporary hardcoded login (Week-1)
-    if data.get("email") == "s@x.com" and data.get("password") == "123":
-        return jsonify({
-            "role": "student",
-            "name": "Student One"
-        })
+    email = data.get("email")
+    password = data.get("password")
 
-    return jsonify({"error": "invalid credentials"}), 401
+    if not email or not password:
+        return jsonify({"error": "email and password required"}), 400
+
+    user = login_user(email, password)
+
+    if not user:
+        return jsonify({"error": "invalid credentials"}), 401
+
+    # API_CONTRACT.md compliant response
+    return jsonify({
+        "role": user["role"],
+        "name": user["name"]
+    }), 200
 
 
 # --------------------
@@ -36,5 +45,3 @@ def login():
 # --------------------
 if __name__ == "__main__":
     app.run(debug=True)
-
-# PINKI CONTINUE DB LOGIC AND ALL AFTER THIS I HAVE MADE BASIC

@@ -1,0 +1,184 @@
+/* =========================================================
+   frontend/login.js
+   FINAL MERGED VERSION (Week-1)
+   ---------------------------------------------------------
+   Combines:
+   - Teammate 2: UI, spinner, toggle password, messages
+   - Teammate 5: session handling, redirects, page protection
+
+   Backend expectations (Week-1):
+   POST /login
+   Success: { role, name }
+   Error:   { error }
+
+   Future-ready:
+   - Supports token-based auth later without changes
+   ========================================================= */
+
+/* ---------- CONFIG ---------- */
+const API_BASE = ""; // same-origin backend
+
+/* ---------- DOM ELEMENTS ---------- */
+const loginBtn = document.getElementById("loginBtn");
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+const spinner = document.getElementById("spinner");
+const msgBox = document.getElementById("msg");
+const togglePassword = document.getElementById("togglePassword");
+const forgotPwd = document.getElementById("forgotPwd");
+
+/* ---------- UI HELPERS ---------- */
+function showMessage(text, success = true) {
+  if (!msgBox) return;
+  msgBox.textContent = text;
+  msgBox.style.color = success ? "#16a34a" : "#ef4444";
+}
+
+function setLoading(on) {
+  if (!spinner || !loginBtn) return;
+  if (on) {
+    spinner.classList.remove("hidden");
+    loginBtn.disabled = true;
+  } else {
+    spinner.classList.add("hidden");
+    loginBtn.disabled = false;
+  }
+}
+
+/* ---------- PASSWORD TOGGLE (EYE ICON) ---------- */
+if (togglePassword && passwordInput) {
+  togglePassword.addEventListener("click", () => {
+    const hidden = passwordInput.type === "password";
+    passwordInput.type = hidden ? "text" : "password";
+
+    // CSS controls which icon is shown
+    togglePassword.classList.toggle("shown", hidden);
+
+    togglePassword.setAttribute(
+      "aria-label",
+      hidden ? "Hide password" : "Show password"
+    );
+  });
+}
+
+/* ---------- SESSION HELPERS ---------- */
+function saveSession(data) {
+  if (!data) return;
+  if (data.token) localStorage.setItem("authToken", data.token);
+  if (data.role) localStorage.setItem("role", data.role);
+  if (data.name) localStorage.setItem("name", data.name);
+}
+
+function handleLogout() {
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("role");
+  localStorage.removeItem("name");
+  window.location.replace("index.html");
+}
+
+/* ---------- REDIRECT LOGIC ---------- */
+function handleRedirect(role) {
+  const routes = {
+    student: "student.html",
+    teacher: "teacher.html",
+    admin: "admin.html"
+  };
+  window.location.replace(routes[role] || "index.html");
+}
+
+/* ---------- MAIN LOGIN FLOW ---------- */
+async function login() {
+  if (!emailInput || !passwordInput) return;
+
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
+
+  if (!email || !password) {
+    showMessage("Please enter email and password", false);
+    return;
+  }
+
+  setLoading(true);
+  showMessage("");
+
+  try {
+    const res = await fetch(`${API_BASE}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMessage(data.error || "Invalid credentials ❌", false);
+      return;
+    }
+
+    // Success
+    saveSession(data);
+    showMessage("Login successful ✅", true);
+
+    // Small delay for UX
+    setTimeout(() => {
+      handleRedirect(data.role);
+    }, 400);
+
+  } catch (err) {
+    console.error(err);
+    showMessage("Server not reachable ❌", false);
+  } finally {
+    setLoading(false);
+  }
+}
+
+/* ---------- EVENT BINDINGS ---------- */
+if (loginBtn) {
+  loginBtn.addEventListener("click", login);
+}
+
+// Enter key submits login
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    const active = document.activeElement;
+    if (active && active.tagName === "INPUT") {
+      login();
+    }
+  }
+});
+
+// Forgot password helper
+if (forgotPwd) {
+  forgotPwd.addEventListener("click", () => {
+    if (!emailInput.value) {
+      alert("Please enter your email first");
+      return;
+    }
+    alert("Password reset link sent to: " + emailInput.value);
+  });
+}
+
+/* ---------- PAGE PROTECTION (Week-1 SIMPLE) ---------- */
+(function protectPages() {
+  const path = window.location.pathname;
+  const isLoginPage =
+    path.endsWith("index.html") || path === "/" || path.endsWith("login.html");
+
+  if (isLoginPage) return;
+
+  const role = localStorage.getItem("role");
+  if (!role) {
+    handleLogout();
+  }
+})();
+
+/* ---------- LOGOUT BUTTON SUPPORT ---------- */
+document.addEventListener("DOMContentLoaded", () => {
+  const logoutBtn = document.getElementById("logoutBtn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      handleLogout();
+    });
+  }
+});
