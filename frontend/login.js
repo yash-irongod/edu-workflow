@@ -1,6 +1,6 @@
 /* =========================================================
    frontend/login.js
-   FINAL MERGED VERSION (Week-1)
+   FINAL MERGED VERSION (Week-1) ✅
    ---------------------------------------------------------
    Combines:
    - Teammate 2: UI, spinner, toggle password, messages
@@ -11,12 +11,14 @@
    Success: { role, name }
    Error:   { error }
 
-   Future-ready:
-   - Supports token-based auth later without changes
+   NOTE:
+   - Extra helpers are FUTURE-READY but DO NOT break Week-1
+   - Only API_BASE is critical for fixing "Server not reachable"
    ========================================================= */
 
-/* ---------- CONFIG ---------- */
-const API_BASE = ""; // same-origin backend
+/* ---------- CONFIG (FIXED) ---------- */
+// IMPORTANT: backend runs on Flask at this URL
+const API_BASE = "http://127.0.0.1:5000";
 
 /* ---------- DOM ELEMENTS ---------- */
 const loginBtn = document.getElementById("loginBtn");
@@ -50,10 +52,7 @@ if (togglePassword && passwordInput) {
   togglePassword.addEventListener("click", () => {
     const hidden = passwordInput.type === "password";
     passwordInput.type = hidden ? "text" : "password";
-
-    // CSS controls which icon is shown
     togglePassword.classList.toggle("shown", hidden);
-
     togglePassword.setAttribute(
       "aria-label",
       hidden ? "Hide password" : "Show password"
@@ -61,18 +60,15 @@ if (togglePassword && passwordInput) {
   });
 }
 
-/* ---------- SESSION HELPERS ---------- */
+/* ---------- SESSION HELPERS (Week-1 SIMPLE) ---------- */
 function saveSession(data) {
   if (!data) return;
-  if (data.token) localStorage.setItem("authToken", data.token);
-  if (data.role) localStorage.setItem("role", data.role);
-  if (data.name) localStorage.setItem("name", data.name);
+  localStorage.setItem("role", data.role);
+  localStorage.setItem("name", data.name);
 }
 
 function handleLogout() {
-  localStorage.removeItem("authToken");
-  localStorage.removeItem("role");
-  localStorage.removeItem("name");
+  localStorage.clear();
   window.location.replace("index.html");
 }
 
@@ -88,8 +84,6 @@ function handleRedirect(role) {
 
 /* ---------- MAIN LOGIN FLOW ---------- */
 async function login() {
-  if (!emailInput || !passwordInput) return;
-
   const email = emailInput.value.trim();
   const password = passwordInput.value.trim();
 
@@ -115,11 +109,10 @@ async function login() {
       return;
     }
 
-    // Success
+    // ✅ SUCCESS (Week-1)
     saveSession(data);
     showMessage("Login successful ✅", true);
 
-    // Small delay for UX
     setTimeout(() => {
       handleRedirect(data.role);
     }, 400);
@@ -133,21 +126,14 @@ async function login() {
 }
 
 /* ---------- EVENT BINDINGS ---------- */
-if (loginBtn) {
-  loginBtn.addEventListener("click", login);
-}
+loginBtn.addEventListener("click", login);
 
-// Enter key submits login
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    const active = document.activeElement;
-    if (active && active.tagName === "INPUT") {
-      login();
-    }
+  if (e.key === "Enter" && document.activeElement.tagName === "INPUT") {
+    login();
   }
 });
 
-// Forgot password helper
 if (forgotPwd) {
   forgotPwd.addEventListener("click", () => {
     if (!emailInput.value) {
@@ -158,21 +144,20 @@ if (forgotPwd) {
   });
 }
 
-/* ---------- PAGE PROTECTION (Week-1 SIMPLE) ---------- */
+/* ---------- PAGE PROTECTION (Week-1) ---------- */
 (function protectPages() {
   const path = window.location.pathname;
-  const isLoginPage =
+  const isLogin =
     path.endsWith("index.html") || path === "/" || path.endsWith("login.html");
 
-  if (isLoginPage) return;
+  if (isLogin) return;
 
-  const role = localStorage.getItem("role");
-  if (!role) {
+  if (!localStorage.getItem("role")) {
     handleLogout();
   }
 })();
 
-/* ---------- LOGOUT BUTTON SUPPORT ---------- */
+/* ---------- LOGOUT BUTTON ---------- */
 document.addEventListener("DOMContentLoaded", () => {
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) {
