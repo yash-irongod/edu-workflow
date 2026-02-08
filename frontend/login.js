@@ -1,194 +1,310 @@
 /**
- * Application Core Logic
- * Merges API handling, Authentication, Login, and Logout functionality.
+ * Application Core Logic (Final Production Version)
+ * Architecture: Module Pattern with Async Queueing & Auto-Retry
+ * Deployment Status: Ready
  */
 
-// --- 1. Constants & Configuration ---
-const API_BASE = '/api';
+const CONFIG = {
+    API_BASE: '/api', // Change to full URL if hosting frontend separately
+    REDIRECTS: {
+        student: '/student.html',
+        teacher: '/teacher.html',
+        admin: '/admin.html',
+        login: '/login.html',
+        default: '/login.html'
+    },
+    DEFAULT_CACHE_TIME: 5 * 60 * 1000,
+    CSRF_TOKEN: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || null,
+    NOTIFICATION_DURATION: 4000
+};
 
-// --- 2. Shared Utilities ---
+// --- 1. Auth Manager ---
 
-/**
- * Centralized Logout Handler
- * Clears storage and redirects to login if not already there.
- */
-function handleLogout() {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userRole");
-    // Or use localStorage.clear() if you want to wipe everything
+const Auth = {
+    getToken() { return localStorage.getItem("authToken"); },
+    getRefreshToken() { return localStorage.getItem("refreshToken"); },
+    getRole() { return localStorage.getItem("userRole"); },
+    isLoggedIn() { return !!this.getToken(); },
 
-    if (!window.location.pathname.includes("login.html")) {
-        window.location.replace("login.html");
+    setSession(accessToken, refreshToken, role) {
+        localStorage.setItem("authToken", accessToken);
+        localStorage.setItem("userRole", role);
+        if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+    },
+
+    clearSession() {
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("refreshToken");
+        API.clearCache();
+    },
+
+    /**
+     * Robust decoder that handles UTF-8 characters (emojis/accents)
+     */
+    parseJwt(token) {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        } catch (e) {
+            return null;
+        }
+    },
+
+    isTokenExpired(token) {
+        const payload = this.parseJwt(token);
+        if (!payload) return true;
+        // Exp is in seconds, Date.now is ms. 10s buffer for clock drift.
+        return (payload.exp * 1000) < (Date.now() + 10000); 
     }
-}
+};
 
-/**
- * Check if a JWT token is expired
- */
-function isTokenExpired(token) {
-    try {
-        const payloadBase64 = token.split('.')[1];
-        const payload = JSON.parse(atob(payloadBase64));
-        // Check if expiry time (exp) is in the past
-        return payload.exp * 1000 < Date.now();
-    } catch (e) {
-        return true; // Treat invalid tokens as expired
-    }
-}
+// --- 2. API Service (Hardened) ---
 
-// --- 3. API Service ---
+const API = {
+    cache: new Map(),
+    pendingRequests: new Map(),
+    isRefreshing: false,
+    refreshSubscribers: [],
 
-const api = {
-    request: async (endpoint, method = 'GET', body = null) => {
-        const token = localStorage.getItem("authToken");
+    subscribeTokenRefresh(cb) { this.refreshSubscribers.push(cb); },
+    onRefreshed(token) {
+        this.refreshSubscribers.forEach(cb => cb(token));
+        this.refreshSubscribers = [];
+    },
+    clearCache() { this.cache.clear(); },
 
-        const headers = {
-            'Content-Type': 'application/json'
-        };
+    async fetch(endpoint, options = {}) {
+        const { method = 'GET', body, cache = false, _retry = false } = options;
+        const cacheKey = `${method}:${endpoint}:${JSON.stringify(body)}`;
 
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
+        // 1. Return cached data if valid (GET only)
+        if (method === 'GET' && cache && !_retry) {
+            const cached = this.cache.get(cacheKey);
+            if (cached && (Date.now() - cached.timestamp < CONFIG.DEFAULT_CACHE_TIME)) {
+                return cached.data;
+            }
         }
 
+        // 2. Deduplicate concurrent identical requests
+        if (this.pendingRequests.has(cacheKey) && !_retry) {
+            return this.pendingRequests.get(cacheKey);
+        }
+
+        const requestPromise = this._performFetch(endpoint, options, cacheKey);
+        this.pendingRequests.set(cacheKey, requestPromise);
+
         try {
-            const config = {
-                method,
+            return await requestPromise;
+        } finally {
+            this.pendingRequests.delete(cacheKey);
+        }
+    },
+
+    async _performFetch(endpoint, options, cacheKey) {
+        let token = Auth.getToken();
+
+        // 1. Pre-flight Expiration Check
+        if (token && Auth.isTokenExpired(token)) {
+            try {
+                token = await this._handleTokenRefresh();
+            } catch (e) {
+                handleLogout("Session expired");
+                throw e;
+            }
+        }
+
+        const headers = { 
+            'Content-Type': 'application/json',
+            ...(CONFIG.CSRF_TOKEN && { 'X-CSRF-Token': CONFIG.CSRF_TOKEN }),
+            ...(token && { 'Authorization': `Bearer ${token}` })
+        };
+
+        try {
+            const response = await fetch(`${CONFIG.API_BASE}${endpoint}`, {
+                method: options.method || 'GET',
                 headers,
-            };
-            
-            if (body) config.body = JSON.stringify(body);
+                body: options.body ? JSON.stringify(options.body) : null
+            });
 
-            const response = await fetch(`${API_BASE}${endpoint}`, config);
-
-            // Handle Unauthorized access globally
-            if (response.status === 401) {
-                handleLogout(); // Uses centralized logout
-                return null;
+            // 2. The "Clock Drift" Fix: 
+            // If server says 401, but we haven't retried yet, try to refresh.
+            if (response.status === 401 && !options._retry) {
+                try {
+                    await this._handleTokenRefresh();
+                    // Recursively retry the original request with the new token
+                    return this.fetch(endpoint, { ...options, _retry: true });
+                } catch (refreshErr) {
+                    handleLogout("Authorization failed. Please log in.");
+                    throw refreshErr;
+                }
             }
 
             if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`);
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `HTTP ${response.status}`);
             }
 
-            return await response.json();
+            const data = await response.json();
+
+            if (options.method === 'GET' && options.cache) {
+                this.cache.set(cacheKey, { data, timestamp: Date.now() });
+            }
+
+            return data;
+        } catch (error) {
+            // Silence errors during the retry mechanism so they don't spam console
+            if (options._retry) throw error; 
+            
+            console.error(`API Fail: ${endpoint}`, error);
+            if (!navigator.onLine) UIManager.notify("No internet connection.", "error");
+            throw error;
+        }
+    },
+
+    async _handleTokenRefresh() {
+        if (this.isRefreshing) {
+            return new Promise(resolve => this.subscribeTokenRefresh(resolve));
+        }
+
+        this.isRefreshing = true;
+
+        try {
+            const refreshToken = Auth.getRefreshToken();
+            if (!refreshToken) throw new Error("No refresh token");
+
+            const res = await fetch(`${CONFIG.API_BASE}/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken })
+            });
+
+            if (!res.ok) throw new Error("Refresh failed");
+
+            const data = await res.json();
+            Auth.setSession(data.token, data.refreshToken, Auth.getRole());
+            
+            this.onRefreshed(data.token);
+            return data.token;
 
         } catch (error) {
-            console.error("API Request Failed:", error);
+            Auth.clearSession();
             throw error;
+        } finally {
+            this.isRefreshing = false;
         }
     }
 };
 
-// --- 4. Login Logic ---
+// --- 3. UI Manager ---
 
-async function loginUser(username, password) {
-    const loginBtn = document.getElementById("loginBtn");
-    const errorDisplay = document.getElementById("errorDisplay");
-
-    // Reset UI
-    if (errorDisplay) errorDisplay.innerText = "";
-
-    if (!username || !password) {
-        if (errorDisplay) errorDisplay.innerText = "Please enter your credentials.";
-        return;
-    }
-
-    if (loginBtn) {
-        loginBtn.disabled = true;
-        loginBtn.innerText = "Logging in...";
-    }
-
-    try {
-        // We use fetch directly here since the api.request wrapper requires a token 
-        // usually, but login is public. However, sticking to raw fetch for auth 
-        // prevents circular dependencies if api.request enforces auth strictly later.
-        const response = await fetch(`${API_BASE}/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+const UIManager = {
+    notify(msg, type = 'info') {
+        const toast = document.createElement('div');
+        toast.textContent = msg;
+        toast.className = `app-toast app-toast--${type}`; 
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        
+        // Inline styles for zero-dependency usage (Move to CSS in production)
+        Object.assign(toast.style, {
+            position: 'fixed', top: '20px', right: '20px', padding: '12px 24px',
+            background: type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#17a2b8',
+            color: 'white', borderRadius: '4px', zIndex: '9999',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)', fontFamily: 'system-ui, sans-serif',
+            transition: 'opacity 0.3s'
         });
 
-        if (!response.ok) throw new Error("Invalid credentials");
+        document.body.appendChild(toast);
+        
+        // Remove after delay
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, CONFIG.NOTIFICATION_DURATION);
+    },
 
-        const data = await response.json();
+    redirect(role) {
+        window.location.replace(CONFIG.REDIRECTS[role] || CONFIG.REDIRECTS.default);
+    }
+};
 
-        if (!data.token || !data.role) {
-            throw new Error("Server response missing token or role.");
-        }
-
-        // Store Session Data
-        localStorage.setItem("authToken", data.token);
-        localStorage.setItem("userRole", data.role);
-
-        handleRedirect(data.role);
-
-    } catch (error) {
-        if (errorDisplay) {
-            errorDisplay.innerText = "Login failed: " + error.message;
-        } else {
-            alert("Login failed: " + error.message);
-        }
-    } finally {
-        if (loginBtn) {
-            loginBtn.disabled = false;
-            loginBtn.innerText = "Login";
-        }
+function handleLogout(msg) {
+    Auth.clearSession();
+    if (msg) UIManager.notify(msg, 'error');
+    if (!window.location.pathname.includes('login.html')) {
+        setTimeout(() => window.location.replace(CONFIG.REDIRECTS.login), 500);
     }
 }
 
-function handleRedirect(role) {
-    const routes = {
-        'student': 'student.html',
-        'teacher': 'teacher.html',
-        'admin': 'admin.html'
-    };
-    window.location.replace(routes[role] || 'login.html');
-}
+// --- 4. Bootstrapper ---
 
-// --- 5. Initialization & Event Listeners ---
+(async function initApp() {
+    window.addEventListener('unhandledrejection', (event) => {
+        // Prevent generic "Script Error" logs
+        if (event.reason && event.reason.message) {
+            console.warn('Background Async Error:', event.reason.message);
+        }
+    });
 
-// This runs immediately to secure pages before content fully renders
-(function checkAuth() {
-    const currentPage = window.location.pathname;
+    const isLoginPage = window.location.pathname.includes('login.html');
 
-    // Skip auth check if we are already on the login page
-    if (currentPage.includes("login.html")) return;
-
-    const token = localStorage.getItem("authToken");
-    const role = localStorage.getItem("userRole");
-
-    // 1. Check if credentials exist
-    if (!token || !role) {
-        handleLogout();
-        return;
+    if (!isLoginPage) {
+        if (!Auth.isLoggedIn()) return handleLogout();
+        
+        // Attempt eager refresh logic
+        if (Auth.isTokenExpired(Auth.getToken())) {
+            try { await API._handleTokenRefresh(); } 
+            catch { return handleLogout("Session expired"); }
+        }
     }
 
-    // 2. Check if token is expired
-    if (isTokenExpired(token)) {
-        handleLogout();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindEvents);
+    } else {
+        bindEvents();
+    }
+
+    function bindEvents() {
+        document.getElementById("logoutBtn")?.addEventListener("click", (e) => {
+            e.preventDefault();
+            handleLogout("Logged out successfully");
+        });
+
+        const loginForm = document.getElementById("loginForm");
+        if (loginForm) {
+            loginForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const username = loginForm.username.value.trim();
+                const password = loginForm.password.value;
+                const btn = loginForm.querySelector('button');
+
+                if (!username || !password) return UIManager.notify("Please enter credentials", "warning");
+                if (btn) { btn.disabled = true; btn.textContent = "Logging in..."; }
+
+                try {
+                    const res = await fetch(`${CONFIG.API_BASE}/login`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ username, password })
+                    });
+
+                    if (!res.ok) throw new Error("Invalid credentials");
+                    
+                    const data = await res.json();
+                    Auth.setSession(data.token, data.refreshToken, data.role);
+                    UIManager.notify("Welcome back!", "success");
+                    UIManager.redirect(data.role);
+
+                } catch (err) {
+                    UIManager.notify(err.message, "error");
+                    if (btn) { btn.disabled = false; btn.textContent = "Login"; }
+                }
+            });
+        }
     }
 })();
-
-// DOMContentLoaded handles event binding (Logout button, Forms, etc.)
-document.addEventListener("DOMContentLoaded", () => {
-    
-    // Bind Logout Button
-    const logoutButton = document.getElementById("logoutBtn");
-    if (logoutButton) {
-        logoutButton.addEventListener("click", (e) => {
-            e.preventDefault();
-            handleLogout();
-        });
-    }
-
-    // Optional: Bind Login Form Submit if it exists
-    const loginForm = document.getElementById("loginForm"); 
-    if (loginForm) {
-        loginForm.addEventListener("submit", (e) => {
-            e.preventDefault();
-            const username = loginForm.elements['username'].value; // Adjust based on your HTML name attributes
-            const password = loginForm.elements['password'].value;
-            loginUser(username, password);
-        });
-    }
-});
