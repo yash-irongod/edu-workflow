@@ -2,46 +2,899 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Admin Dashboard</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard | EduTrack MLOps</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ── Admin-specific accent colour (indigo) ── */
+    :root { --admin-accent: #4f46e5; --admin-accent-light: rgba(79,70,229,0.1); }
+
+    .role-badge          { background: var(--admin-accent); color: #fff; }
+    .stat-card.accent    { background: var(--admin-accent); color: #fff; }
+    .stat-card.accent .sc-label { color: rgba(255,255,255,0.8); }
+
+    /* User-management table action column */
+    .action-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* Status dot */
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+    .dot-green  { background: #22c55e; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-red    { background: #ef4444; }
+
+    /* Toggle switch */
+    .toggle-wrap { display: flex; align-items: center; gap: 10px; }
+    .switch { position: relative; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; inset: 0; background: #cbd5e1; border-radius: 24px; transition: .3s; cursor: pointer; }
+    .slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .3s; }
+    input:checked + .slider { background: var(--admin-accent); }
+    input:checked + .slider::before { transform: translateX(20px); }
+
+    /* Activity feed */
+    .activity-item { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; background: var(--admin-accent-light); }
+    .activity-body { flex: 1; }
+    .activity-body strong { font-size: 13px; }
+    .activity-body .activity-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* Grid helpers */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 720px) { .two-col { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
+<div class="app-shell">
 
-  <div class="sidebar">
-    <h2>Admin</h2>
-    <ul>
-      <li class="active">Dashboard</li>
-      <li>Users</li>
-      <li>Reports</li>
-    </ul>
-  </div>
-
-  <div class="main">
-    <div class="header">
-      <h1>Admin Dashboard</h1>
-      <span>System Overview</span>
+  <!-- ── SIDEBAR ─────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo">Edu<span>Track</span></div>
+      <span class="role-badge">Admin</span>
     </div>
 
-    <div class="content">
-      <div class="card-container">
-        <div class="card">
-          <h3>Users</h3>
-          <p>1330</p>
-        </div>
-        <div class="card">
-          <h3>Status</h3>
-          <p>Online</p>
-        </div>
-        <div class="card">
-          <h3>Reports</h3>
-          <p>48</p>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Overview</div>
+      <a href="#overview"    class="nav-item active"><span class="nav-icon">📊</span> Dashboard</a>
+      <a href="#activity"    class="nav-item"><span class="nav-icon">🔔</span> Activity Feed</a>
+
+      <div class="nav-section-label">Management</div>
+      <a href="#users"       class="nav-item"><span class="nav-icon">👥</span> User Management</a>
+      <a href="#departments" class="nav-item"><span class="nav-icon">🏛️</span> Departments</a>
+      <a href="#courses"     class="nav-item"><span class="nav-icon">📚</span> Courses</a>
+      <a href="#timetable"   class="nav-item"><span class="nav-icon">🕐</span> Timetable Config</a>
+
+      <div class="nav-section-label">Academic</div>
+      <a href="#grievances"  class="nav-item"><span class="nav-icon">📩</span> Grievances</a>
+      <a href="#notices"     class="nav-item"><span class="nav-icon">📣</span> Notice Board</a>
+      <a href="#reports"     class="nav-item"><span class="nav-icon">📈</span> Reports</a>
+
+      <div class="nav-section-label">System</div>
+      <a href="#settings"    class="nav-item"><span class="nav-icon">⚙️</span> Settings</a>
+      <a href="#logs"        class="nav-item"><span class="nav-icon">🗂️</span> Audit Logs</a>
+      <a href="#profile"     class="nav-item"><span class="nav-icon">👤</span> Profile</a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="avatarInitials">SA</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebarAdminName">System Admin</div>
+          <div class="user-role">Super Administrator</div>
         </div>
       </div>
-
-      <p>Welcome, Admin 👋</p>
-      <p>Manage users, roles, and system data.</p>
+      <button class="logout-btn" id="logoutBtn">⎋ Sign Out</button>
     </div>
-  </div>
+  </aside>
 
+  <!-- ── MAIN CONTENT ──────────────────────── -->
+  <main class="main-content">
+
+    <!-- PAGE HEADER -->
+    <div class="page-header" id="overview">
+      <div class="page-header-text">
+        <h1>Welcome, <span id="adminName">Admin</span> 🛡️</h1>
+        <p>System Administration &nbsp;·&nbsp; EduTrack MLOps Platform &nbsp;·&nbsp; Session 2025–26</p>
+      </div>
+      <div class="header-meta" id="liveClock">—</div>
+    </div>
+
+    <!-- SYSTEM ALERT -->
+    <div class="alert alert-warning">
+      <span class="alert-icon">⚠️</span>
+      <div><strong>System Notice:</strong> 3 pending grievances require admin review. Server disk usage is at 73% — consider archiving old logs.</div>
+    </div>
+
+    <!-- STAT CARDS -->
+    <div class="stats-grid">
+      <div class="stat-card accent">
+        <div class="sc-icon">👥</div>
+        <div class="sc-value">1,840</div>
+        <div class="sc-label">Total Users</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-icon">🎓</div>
+        <div class="sc-value">1,640</div>
+        <div class="sc-label">Students</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-icon">🏫</div>
+        <div class="sc-value">121</div>
+        <div class="sc-label">Faculty</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-icon">🏛️</div>
+        <div class="sc-value">6</div>
+        <div class="sc-label">Departments</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-icon">📩</div>
+        <div class="sc-value">3</div>
+        <div class="sc-label">Pending Grievances</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-icon">🖥️</div>
+        <div class="sc-value"><span style="color:#22c55e">●</span> Online</div>
+        <div class="sc-label">System Status</div>
+      </div>
+    </div>
+
+    <!-- DEPT ENROLMENT CHART -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">📊 Department-wise Enrolment & Faculty</span>
+        <span class="section-badge">Session 2025–26</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="mainChart"></canvas>
+      </div>
+    </div>
+
+    <!-- ACTIVITY FEED -->
+    <div class="section" id="activity">
+      <div class="section-header">
+        <span class="section-title">🔔 Recent Activity Feed</span>
+        <span class="section-badge">Last 24 hrs</span>
+      </div>
+      <div>
+        <div class="activity-item">
+          <div class="activity-icon">👤</div>
+          <div class="activity-body">
+            <strong>New user registered</strong> — Ravi Tiwari (Student, CSE) created an account.
+            <div class="activity-meta">Today · 09:14 AM &nbsp;·&nbsp; IP: 192.168.1.42</div>
+          </div>
+          <span class="badge badge-info">User</span>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon">📩</div>
+          <div class="activity-body">
+            <strong>Grievance submitted</strong> — Priya Sharma raised an academic grievance (Exam re-evaluation).
+            <div class="activity-meta">Today · 08:45 AM</div>
+          </div>
+          <span class="badge badge-warning">Grievance</span>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon">🏆</div>
+          <div class="activity-body">
+            <strong>Marks uploaded</strong> — Dr. Mehra uploaded Internal 2 marks for CSE AI-ML (Sec A).
+            <div class="activity-meta">Today · 08:02 AM</div>
+          </div>
+          <span class="badge badge-success">Academic</span>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon">⚙️</div>
+          <div class="activity-body">
+            <strong>System backup completed</strong> — Automated nightly backup successful (2.3 GB).
+            <div class="activity-meta">Yesterday · 11:59 PM</div>
+          </div>
+          <span class="badge badge-neutral">System</span>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon">📣</div>
+          <div class="activity-body">
+            <strong>Notice published</strong> — "End-Semester Exam Schedule" posted by Exam Cell.
+            <div class="activity-meta">Yesterday · 06:30 PM</div>
+          </div>
+          <span class="badge badge-info">Notice</span>
+        </div>
+        <div class="activity-item">
+          <div class="activity-icon">🔑</div>
+          <div class="activity-body">
+            <strong>Password reset</strong> — Faculty account (prof.ahuja@edu.in) reset via admin panel.
+            <div class="activity-meta">Yesterday · 03:15 PM</div>
+          </div>
+          <span class="badge badge-danger">Security</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- USER MANAGEMENT -->
+    <div class="section" id="users">
+      <div class="section-header">
+        <span class="section-title">👥 User Management</span>
+        <span class="section-badge">1,840 accounts</span>
+      </div>
+
+      <!-- Add User Form -->
+      <form id="addUserForm" style="background:var(--paper);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;max-width:700px">
+        <div style="font-weight:600;font-size:14px;margin-bottom:16px">➕ Create New User</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+          <div class="form-group" style="margin-bottom:0">
+            <label for="newUserName">Full Name</label>
+            <input type="text" id="newUserName" placeholder="e.g. Ravi Tiwari" required />
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="newUserEmail">Email</label>
+            <input type="email" id="newUserEmail" placeholder="user@edu.in" required />
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="newUserRole">Role</label>
+            <select id="newUserRole" required>
+              <option value="">— Select Role —</option>
+              <option value="student">Student</option>
+              <option value="teacher">Teacher / Faculty</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="newUserDept">Department</label>
+            <select id="newUserDept">
+              <option>CSE</option><option>ECE</option><option>ME</option>
+              <option>CE</option><option>EE</option><option>MBA</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="newUserPass">Temp Password</label>
+            <input type="text" id="newUserPass" placeholder="Auto-generate or set" />
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button type="submit" class="btn btn-accent" style="width:100%">✔ Create User</button>
+          </div>
+        </div>
+      </form>
+
+      <!-- User Filter Bar -->
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+        <input type="text" placeholder="🔍  Search by name, email or roll no…"
+               style="padding:9px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;width:280px;outline:none"
+               oninput="filterAdminUsers(this.value)" />
+        <select style="padding:9px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none"
+                id="roleFilterSelect" onchange="filterAdminUsers(document.querySelector('[oninput]').value)">
+          <option value="">All Roles</option>
+          <option value="student">Student</option>
+          <option value="teacher">Teacher</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+
+      <!-- Users Table -->
+      <div style="overflow-x:auto">
+        <table class="data-table" id="adminUserTable">
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Dept</th><th>Status</th><th>Last Login</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr data-role="student">
+              <td>Priya Sharma</td><td>priya@edu.in</td>
+              <td><span class="badge badge-info">Student</span></td><td>CSE</td>
+              <td><span class="dot dot-green"></span>Active</td><td>Today 09:30 AM</td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('Opening profile: Priya Sharma', 'success')">View</button>
+                <button class="btn btn-sm btn-outline" onclick="showToast('Password reset email sent.', 'success')">Reset Pwd</button>
+                <button class="btn btn-sm btn-danger btn-sm" onclick="showToast('Account suspended: Priya Sharma', 'error')">Suspend</button>
+              </td>
+            </tr>
+            <tr data-role="teacher">
+              <td>Dr. Rajiv Mehra</td><td>mehra@edu.in</td>
+              <td><span class="badge badge-warning">Teacher</span></td><td>CSE</td>
+              <td><span class="dot dot-green"></span>Active</td><td>Today 08:00 AM</td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('Opening profile: Dr. Mehra', 'success')">View</button>
+                <button class="btn btn-sm btn-outline" onclick="showToast('Password reset email sent.', 'success')">Reset Pwd</button>
+                <button class="btn btn-sm btn-danger btn-sm" onclick="showToast('Account suspended: Dr. Mehra', 'error')">Suspend</button>
+              </td>
+            </tr>
+            <tr data-role="student">
+              <td>Rahul Sharma</td><td>rahul@edu.in</td>
+              <td><span class="badge badge-info">Student</span></td><td>CSE</td>
+              <td><span class="dot dot-green"></span>Active</td><td>Yesterday 06:45 PM</td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('Opening profile: Rahul Sharma', 'success')">View</button>
+                <button class="btn btn-sm btn-outline" onclick="showToast('Password reset email sent.', 'success')">Reset Pwd</button>
+                <button class="btn btn-sm btn-danger btn-sm" onclick="showToast('Account suspended: Rahul Sharma', 'error')">Suspend</button>
+              </td>
+            </tr>
+            <tr data-role="teacher">
+              <td>Prof. Ahuja</td><td>prof.ahuja@edu.in</td>
+              <td><span class="badge badge-warning">Teacher</span></td><td>CSE</td>
+              <td><span class="dot dot-yellow"></span>Inactive</td><td>3 days ago</td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('Opening profile: Prof. Ahuja', 'success')">View</button>
+                <button class="btn btn-sm btn-outline" onclick="showToast('Password reset email sent.', 'success')">Reset Pwd</button>
+                <button class="btn btn-sm btn-danger btn-sm" onclick="showToast('Account suspended: Prof. Ahuja', 'error')">Suspend</button>
+              </td>
+            </tr>
+            <tr data-role="student">
+              <td>Anjali Verma</td><td>anjali@edu.in</td>
+              <td><span class="badge badge-info">Student</span></td><td>ECE</td>
+              <td><span class="dot dot-red"></span>Suspended</td><td>10 days ago</td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('Opening profile: Anjali Verma', 'success')">View</button>
+                <button class="btn btn-sm btn-accent" onclick="showToast('Account restored: Anjali Verma', 'success')">Restore</button>
+                <button class="btn btn-sm btn-danger btn-sm" onclick="showToast('Account permanently deleted.', 'error')">Delete</button>
+              </td>
+            </tr>
+            <tr data-role="admin">
+              <td>System Admin</td><td>admin@edu.in</td>
+              <td><span class="badge badge-danger">Admin</span></td><td>—</td>
+              <td><span class="dot dot-green"></span>Active</td><td>Now</td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('This is your own account.', 'success')">View</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DEPARTMENTS -->
+    <div class="section" id="departments">
+      <div class="section-header">
+        <span class="section-title">🏛️ Departments Overview</span>
+        <span class="section-badge">6 departments</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr><th>Department</th><th>HOD</th><th>Faculty</th><th>Students</th><th>Courses</th><th>Avg CGPA</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>CSE</strong></td><td>Prof. D. Rao</td><td>28</td><td>420</td><td>12</td><td>8.2</td>
+              <td><span class="badge badge-success">Active</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Opening CSE dept details.', 'success')">Manage</button></td>
+            </tr>
+            <tr>
+              <td><strong>ECE</strong></td><td>Dr. S. Nair</td><td>24</td><td>380</td><td>10</td><td>7.9</td>
+              <td><span class="badge badge-success">Active</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Opening ECE dept details.', 'success')">Manage</button></td>
+            </tr>
+            <tr>
+              <td><strong>ME</strong></td><td>Prof. R. Gupta</td><td>20</td><td>310</td><td>9</td><td>7.6</td>
+              <td><span class="badge badge-success">Active</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Opening ME dept details.', 'success')">Manage</button></td>
+            </tr>
+            <tr>
+              <td><strong>CE</strong></td><td>Dr. P. Joshi</td><td>18</td><td>290</td><td>8</td><td>7.4</td>
+              <td><span class="badge badge-success">Active</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Opening CE dept details.', 'success')">Manage</button></td>
+            </tr>
+            <tr>
+              <td><strong>EE</strong></td><td>Prof. A. Kulkarni</td><td>17</td><td>260</td><td>8</td><td>7.7</td>
+              <td><span class="badge badge-success">Active</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Opening EE dept details.', 'success')">Manage</button></td>
+            </tr>
+            <tr>
+              <td><strong>MBA</strong></td><td>Dr. V. Sharma</td><td>14</td><td>180</td><td>6</td><td>7.3</td>
+              <td><span class="badge badge-warning">Review</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Opening MBA dept details.', 'success')">Manage</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px">
+        <button class="btn btn-outline" onclick="showToast('New department form opened.', 'success')">➕ Add Department</button>
+      </div>
+    </div>
+
+    <!-- COURSES -->
+    <div class="section" id="courses">
+      <div class="section-header">
+        <span class="section-title">📚 Course Registry</span>
+        <span class="section-badge">53 active courses</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr><th>Course Code</th><th>Course Title</th><th>Dept</th><th>Credits</th><th>Faculty Assigned</th><th>Students</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>CS601</td><td>Deep Learning</td><td>CSE</td><td>4</td><td>Dr. Mehra</td><td>120</td><td><span class="badge badge-success">Active</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('CS601 details opened.','success')">Edit</button></td></tr>
+            <tr><td>CS602</td><td>MLOps Practicals</td><td>CSE</td><td>4</td><td>Prof. Ahuja</td><td>120</td><td><span class="badge badge-success">Active</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('CS602 details opened.','success')">Edit</button></td></tr>
+            <tr><td>CS603</td><td>NLP &amp; Transformers</td><td>CSE</td><td>4</td><td>Dr. Kapoor</td><td>115</td><td><span class="badge badge-success">Active</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('CS603 details opened.','success')">Edit</button></td></tr>
+            <tr><td>CS604</td><td>Cloud Computing</td><td>CSE</td><td>3</td><td>Prof. Singh</td><td>118</td><td><span class="badge badge-warning">Review</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('CS604 details opened.','success')">Edit</button></td></tr>
+            <tr><td>CS605</td><td>Reinforcement Learning</td><td>CSE</td><td>4</td><td>Dr. Bose</td><td>110</td><td><span class="badge badge-success">Active</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('CS605 details opened.','success')">Edit</button></td></tr>
+            <tr><td>EC501</td><td>VLSI Design</td><td>ECE</td><td>4</td><td>Prof. Mehta</td><td>95</td><td><span class="badge badge-success">Active</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('EC501 details opened.','success')">Edit</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="showToast('New course form opened.', 'success')">➕ Add Course</button>
+        <button class="btn btn-outline" onclick="showToast('Generating course catalogue PDF…', 'success')">⬇ Export Catalogue</button>
+      </div>
+    </div>
+
+    <!-- TIMETABLE CONFIG -->
+    <div class="section" id="timetable">
+      <div class="section-header">
+        <span class="section-title">🕐 Timetable Configuration</span>
+        <span class="section-badge">Session 2025–26</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr><th>Dept / Section</th><th>Semester</th><th>Total Slots/Week</th><th>Last Updated</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>CSE AI-ML (Sec A)</td><td>VI</td><td>30</td><td>01 Mar 2026</td><td><span class="badge badge-success">Published</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Timetable editor: CSE AI-ML A','success')">Edit</button></td></tr>
+            <tr><td>CSE AI-ML (Sec B)</td><td>VI</td><td>30</td><td>01 Mar 2026</td><td><span class="badge badge-success">Published</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Timetable editor: CSE AI-ML B','success')">Edit</button></td></tr>
+            <tr><td>CSE Core (Sec A)</td><td>IV</td><td>28</td><td>28 Feb 2026</td><td><span class="badge badge-warning">Draft</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Timetable editor: CSE Core A','success')">Edit</button></td></tr>
+            <tr><td>ECE (Sec A)</td><td>IV</td><td>28</td><td>25 Feb 2026</td><td><span class="badge badge-success">Published</span></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showToast('Timetable editor: ECE A','success')">Edit</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="showToast('New timetable wizard opened.', 'success')">➕ Create Timetable</button>
+        <button class="btn btn-outline" onclick="showToast('Clash detection running…', 'success')">🔍 Check for Clashes</button>
+      </div>
+    </div>
+
+    <!-- GRIEVANCES -->
+    <div class="section" id="grievances">
+      <div class="section-header">
+        <span class="section-title">📩 Grievance Management</span>
+        <span class="section-badge">3 pending</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr><th>#</th><th>Submitted By</th><th>Type</th><th>Subject</th><th>Date</th><th>Priority</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>GRV-001</td><td>Priya Sharma</td><td>Examination</td><td>Request for re-evaluation — Deep Learning Internal 2</td>
+              <td>29 Mar 2026</td><td><span class="badge badge-danger">HIGH</span></td>
+              <td><span class="badge badge-warning">Pending</span></td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('GRV-001 details opened.','success')">View</button>
+                <button class="btn btn-sm btn-accent" onclick="showToast('GRV-001 resolved.','success')">Resolve</button>
+              </td>
+            </tr>
+            <tr>
+              <td>GRV-002</td><td>Arjun Kapoor</td><td>Fees</td><td>Scholarship credit not reflected</td>
+              <td>27 Mar 2026</td><td><span class="badge badge-warning">MEDIUM</span></td>
+              <td><span class="badge badge-warning">Pending</span></td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('GRV-002 details opened.','success')">View</button>
+                <button class="btn btn-sm btn-accent" onclick="showToast('GRV-002 resolved.','success')">Resolve</button>
+              </td>
+            </tr>
+            <tr>
+              <td>GRV-003</td><td>Sneha Reddy</td><td>Hostel</td><td>Room change request — maintenance issue</td>
+              <td>25 Mar 2026</td><td><span class="badge badge-neutral">LOW</span></td>
+              <td><span class="badge badge-warning">Pending</span></td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('GRV-003 details opened.','success')">View</button>
+                <button class="btn btn-sm btn-accent" onclick="showToast('GRV-003 resolved.','success')">Resolve</button>
+              </td>
+            </tr>
+            <tr>
+              <td>GRV-004</td><td>Rahul Sharma</td><td>Academic</td><td>Incorrect attendance entry — Cloud Computing</td>
+              <td>20 Mar 2026</td><td><span class="badge badge-warning">MEDIUM</span></td>
+              <td><span class="badge badge-success">Resolved</span></td>
+              <td class="action-cell">
+                <button class="btn btn-sm btn-outline" onclick="showToast('GRV-004 details opened.','success')">View</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- NOTICE BOARD -->
+    <div class="section" id="notices">
+      <div class="section-header">
+        <span class="section-title">📣 Notice Board</span>
+      </div>
+      <form id="noticeForm" style="background:var(--paper);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;max-width:620px">
+        <div style="font-weight:600;font-size:14px;margin-bottom:16px">📌 Publish a Notice</div>
+        <div class="form-group">
+          <label for="noticeTitle">Title</label>
+          <input type="text" id="noticeTitle" placeholder="Notice title" required />
+        </div>
+        <div class="two-col">
+          <div class="form-group">
+            <label for="noticeAudience">Target Audience</label>
+            <select id="noticeAudience">
+              <option>All Users</option>
+              <option>Students Only</option>
+              <option>Faculty Only</option>
+              <option>CSE Department</option>
+              <option>ECE Department</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="noticePriority">Priority</label>
+            <select id="noticePriority">
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="noticeBody">Message</label>
+          <textarea id="noticeBody" rows="4" placeholder="Write the notice content here…" required></textarea>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button type="submit" class="btn btn-accent">📣 Publish Notice</button>
+          <button type="reset" class="btn btn-outline">✕ Clear</button>
+        </div>
+      </form>
+
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr><th>#</th><th>Title</th><th>Audience</th><th>Published By</th><th>Date</th><th>Priority</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>End-Semester Exam Schedule Released</td><td>All Users</td><td>Exam Cell</td><td>25 Mar 2026</td><td><span class="badge badge-danger">HIGH</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('Unpublished notice #1.','error')">Unpublish</button></td></tr>
+            <tr><td>2</td><td>Mini Project Submission Portal Now Open</td><td>Students</td><td>HOD, CSE</td><td>24 Mar 2026</td><td><span class="badge badge-danger">HIGH</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('Unpublished notice #2.','error')">Unpublish</button></td></tr>
+            <tr><td>3</td><td>Library Fine Amnesty Week (26 Mar – 1 Apr)</td><td>All Users</td><td>Library Committee</td><td>20 Mar 2026</td><td><span class="badge badge-warning">MEDIUM</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('Unpublished notice #3.','error')">Unpublish</button></td></tr>
+            <tr><td>4</td><td>Campus Placement Drive — TCS &amp; Infosys</td><td>Students</td><td>T&amp;P Cell</td><td>15 Mar 2026</td><td><span class="badge badge-danger">HIGH</span></td><td><button class="btn btn-sm btn-outline" onclick="showToast('Unpublished notice #4.','error')">Unpublish</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="section" id="reports">
+      <div class="section-header">
+        <span class="section-title">📈 Reports &amp; Analytics</span>
+        <span class="section-badge">Generate &amp; Export</span>
+      </div>
+      <div class="two-col">
+        <div style="background:var(--paper);border:1px solid var(--border);border-radius:12px;padding:20px">
+          <div style="font-weight:600;margin-bottom:12px">📋 Academic Reports</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="btn btn-outline" onclick="showToast('Generating enrolment report…','success')">🎓 Enrolment Summary</button>
+            <button class="btn btn-outline" onclick="showToast('Generating attendance report…','success')">📋 Institute-wide Attendance</button>
+            <button class="btn btn-outline" onclick="showToast('Generating results report…','success')">🏆 Semester Results Overview</button>
+            <button class="btn btn-outline" onclick="showToast('Generating at-risk students list…','success')">⚠ At-Risk Students Report</button>
+          </div>
+        </div>
+        <div style="background:var(--paper);border:1px solid var(--border);border-radius:12px;padding:20px">
+          <div style="font-weight:600;margin-bottom:12px">⚙️ System Reports</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="btn btn-outline" onclick="showToast('Generating user activity report…','success')">👤 User Activity Log</button>
+            <button class="btn btn-outline" onclick="showToast('Generating login audit…','success')">🔑 Login Audit Report</button>
+            <button class="btn btn-outline" onclick="showToast('Generating storage report…','success')">🖥️ Server Storage Report</button>
+            <button class="btn btn-outline" onclick="showToast('Exporting all data…','success')">⬇ Full Data Export (CSV)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="section" id="settings">
+      <div class="section-header">
+        <span class="section-title">⚙️ System Settings</span>
+      </div>
+      <form id="settingsForm" style="max-width:620px">
+        <div class="form-group">
+          <label for="instituteName">Institution Name</label>
+          <input type="text" id="instituteName" value="EduTrack University of Technology" />
+        </div>
+        <div class="form-group">
+          <label for="sessionYear">Current Academic Session</label>
+          <select id="sessionYear">
+            <option selected>2025 – 2026</option>
+            <option>2026 – 2027</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="minAttendance">Minimum Attendance Threshold (%)</label>
+          <input type="number" id="minAttendance" value="75" min="50" max="100" />
+        </div>
+        <div class="form-group">
+          <label>Feature Toggles</label>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-top:6px">
+            <div class="toggle-wrap"><label class="switch"><input type="checkbox" checked /><span class="slider"></span></label> Student Portal Enabled</div>
+            <div class="toggle-wrap"><label class="switch"><input type="checkbox" checked /><span class="slider"></span></label> Teacher Portal Enabled</div>
+            <div class="toggle-wrap"><label class="switch"><input type="checkbox" checked /><span class="slider"></span></label> Grievance Module Active</div>
+            <div class="toggle-wrap"><label class="switch"><input type="checkbox" /><span class="slider"></span></label> Maintenance Mode</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <button type="submit" class="btn btn-accent">💾 Save Settings</button>
+          <button type="button" class="btn btn-outline" onclick="showToast('Settings reset to defaults.','success')">↺ Reset Defaults</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- AUDIT LOGS -->
+    <div class="section" id="logs">
+      <div class="section-header">
+        <span class="section-title">🗂️ Audit Logs</span>
+        <span class="section-badge">Last 7 days</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr><th>Timestamp</th><th>User</th><th>Role</th><th>Action</th><th>IP Address</th><th>Result</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>30 Mar 2026 09:30</td><td>priya@edu.in</td><td>Student</td><td>Login</td><td>192.168.1.42</td><td><span class="badge badge-success">Success</span></td></tr>
+            <tr><td>30 Mar 2026 09:14</td><td>admin@edu.in</td><td>Admin</td><td>Create User — Ravi Tiwari</td><td>10.0.0.1</td><td><span class="badge badge-success">Success</span></td></tr>
+            <tr><td>30 Mar 2026 08:02</td><td>mehra@edu.in</td><td>Teacher</td><td>Marks Upload — CS601 Internal 2</td><td>192.168.1.18</td><td><span class="badge badge-success">Success</span></td></tr>
+            <tr><td>29 Mar 2026 23:59</td><td>system</td><td>System</td><td>Automated Backup — 2.3 GB</td><td>localhost</td><td><span class="badge badge-success">Success</span></td></tr>
+            <tr><td>29 Mar 2026 18:30</td><td>admin@edu.in</td><td>Admin</td><td>Notice Published — Exam Schedule</td><td>10.0.0.1</td><td><span class="badge badge-success">Success</span></td></tr>
+            <tr><td>29 Mar 2026 15:15</td><td>admin@edu.in</td><td>Admin</td><td>Password Reset — prof.ahuja@edu.in</td><td>10.0.0.1</td><td><span class="badge badge-success">Success</span></td></tr>
+            <tr><td>28 Mar 2026 11:05</td><td>unknown</td><td>—</td><td>Failed Login Attempt</td><td>45.33.32.156</td><td><span class="badge badge-danger">Denied</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="showToast('Downloading full audit log…','success')">⬇ Export Logs (CSV)</button>
+        <button class="btn btn-danger btn-sm" onclick="showToast('Logs older than 90 days cleared.','success')">🗑 Clear Old Logs</button>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="section" id="profile">
+      <div class="section-header">
+        <span class="section-title">👤 Admin Profile</span>
+        <button class="btn btn-outline btn-sm" onclick="showToast('Profile editor opened.','success')">✏ Edit Profile</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <tbody>
+            <tr><td style="width:200px;color:var(--muted)">Full Name</td><td><strong id="profileName">System Admin</strong></td></tr>
+            <tr><td style="color:var(--muted)">Admin ID</td><td>ADM-2024-001</td></tr>
+            <tr><td style="color:var(--muted)">Role</td><td>Super Administrator</td></tr>
+            <tr><td style="color:var(--muted)">Email</td><td>admin@edu.in</td></tr>
+            <tr><td style="color:var(--muted)">Phone</td><td>+91 98001 00001</td></tr>
+            <tr><td style="color:var(--muted)">Last Login</td><td>Today — 09:00 AM</td></tr>
+            <tr><td style="color:var(--muted)">Two-Factor Auth</td><td><span class="badge badge-success">Enabled</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="showToast('Password change form opened.','success')">🔑 Change Password</button>
+        <button class="btn btn-outline" onclick="showToast('2FA settings opened.','success')">🛡️ Manage 2FA</button>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer style="text-align:center;padding:32px 0 16px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);margin-top:8px">
+      © 2026 EduTrack — MLOps Admin Portal &nbsp;·&nbsp;
+      <a href="#" style="color:var(--muted)">Help &amp; Support</a> &nbsp;·&nbsp;
+      <a href="#" style="color:var(--muted)">Privacy Policy</a>
+    </footer>
+
+  </main>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toastContainer" style="position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999"></div>
+
+<script>
+/* ── Admin search/filter ── */
+window.filterAdminUsers = function(query) {
+  const roleFilter = (document.getElementById("roleFilterSelect")?.value || "").toLowerCase();
+  const q = (query || "").toLowerCase().trim();
+
+  document.querySelectorAll("#adminUserTable tbody tr").forEach((row) => {
+    const role = (row.getAttribute("data-role") || "").toLowerCase();
+    const text = row.textContent.toLowerCase();
+    const roleMatch = !roleFilter || role === roleFilter;
+    const textMatch = !q || text.includes(q);
+    row.style.display = (roleMatch && textMatch) ? "" : "none";
+  });
+};
+</script>
+
+<script src="login.js"></script>
+<script>
+(function () {
+  const role = localStorage.getItem("role");
+  const storedName = localStorage.getItem("name");
+  const fullName = (storedName && storedName.trim()) ? storedName.trim() : "System Admin";
+  const roleRoutes = {
+    student: "student.html",
+    teacher: "teacher.html",
+    admin: "admin.html"
+  };
+
+  if (!role) {
+    window.location.href = "index.html";
+    return;
+  }
+
+  if (role !== "admin") {
+    window.location.href = roleRoutes[role] || "index.html";
+    return;
+  }
+
+  const adminNameEl = document.getElementById("adminName");
+  const sidebarAdminNameEl = document.getElementById("sidebarAdminName");
+  const avatarEl = document.getElementById("avatarInitials");
+  const profileNameEl = document.getElementById("profileName");
+  const liveClockEl = document.getElementById("liveClock");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const navItems = Array.from(document.querySelectorAll(".nav-item"));
+  const addUserForm = document.getElementById("addUserForm");
+  const noticeForm = document.getElementById("noticeForm");
+  const settingsForm = document.getElementById("settingsForm");
+  const chartCanvas = document.getElementById("mainChart");
+
+  function initialsFromName(name) {
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (!parts.length) return "SA";
+    return parts
+      .slice(0, 2)
+      .map(part => part[0] ? part[0].toUpperCase() : "")
+      .join("") || "SA";
+  }
+
+  function updateClock() {
+    if (!liveClockEl) return;
+    liveClockEl.textContent = new Date().toLocaleString("en-IN", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  if (adminNameEl) adminNameEl.textContent = fullName;
+  if (sidebarAdminNameEl) sidebarAdminNameEl.textContent = fullName;
+  if (profileNameEl) profileNameEl.textContent = fullName;
+  if (avatarEl) avatarEl.textContent = initialsFromName(fullName);
+
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  if (typeof window.showToast !== "function") {
+    window.showToast = function (message, type = "success") {
+      const container = document.getElementById("toastContainer");
+      if (!container) {
+        alert(message);
+        return;
+      }
+
+      const toast = document.createElement("div");
+      const success = type === "success" || type === "ok";
+      toast.textContent = message;
+      toast.style.cssText = [
+        "min-width:260px",
+        "max-width:360px",
+        "padding:12px 16px",
+        "border-radius:12px",
+        "font-family:DM Sans,sans-serif",
+        "font-size:14px",
+        "font-weight:500",
+        "backdrop-filter:blur(16px)",
+        "border:1px solid rgba(255,255,255,.12)",
+        "box-shadow:0 10px 24px rgba(0,0,0,.18)",
+        "transition:opacity .25s ease, transform .25s ease",
+        "opacity:1",
+        "transform:translateY(0)"
+      ].join(";");
+
+      if (success) {
+        toast.style.background = "rgba(16, 185, 129, 0.16)";
+        toast.style.color = "#b7f7d3";
+        toast.style.borderColor = "rgba(34,197,94,.45)";
+      } else {
+        toast.style.background = "rgba(239, 68, 68, 0.16)";
+        toast.style.color = "#ffc3c3";
+        toast.style.borderColor = "rgba(239,68,68,.45)";
+      }
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(8px)";
+        setTimeout(() => toast.remove(), 250);
+      }, 2200);
+    };
+  }
+
+  navItems.forEach(item => {
+    item.addEventListener("click", () => {
+      navItems.forEach(i => i.classList.remove("active"));
+      item.classList.add("active");
+    });
+  });
+
+  if (addUserForm) {
+    addUserForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      showToast("New user created successfully.", "success");
+      addUserForm.reset();
+    });
+  }
+
+  if (noticeForm) {
+    noticeForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      showToast("Notice published successfully.", "success");
+      noticeForm.reset();
+    });
+  }
+
+  if (settingsForm) {
+    settingsForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      showToast("Settings saved successfully.", "success");
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", function () {
+      localStorage.clear();
+      window.location.href = "index.html";
+    });
+  }
+
+  if (window.Chart && chartCanvas) {
+    new Chart(chartCanvas, {
+      type: "bar",
+      data: {
+        labels: ["CSE", "ECE", "ME", "CE", "EE", "MBA"],
+        datasets: [
+          {
+            label: "Students",
+            data: [420, 380, 310, 290, 260, 180],
+            backgroundColor: "rgba(79, 70, 229, 0.55)"
+          },
+          {
+            label: "Faculty",
+            data: [28, 24, 20, 18, 17, 14],
+            backgroundColor: "rgba(99, 102, 241, 0.3)"
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: "#cbd5e1",
+              font: {
+                family: "DM Sans"
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: "#94a3b8" },
+            grid: { color: "rgba(148, 163, 184, 0.12)" }
+          },
+          y: {
+            ticks: { color: "#94a3b8" },
+            grid: { color: "rgba(148, 163, 184, 0.12)" }
+          }
+        }
+      }
+    });
+  }
+})();
+</script>
 </body>
 </html>
