@@ -150,12 +150,10 @@ Storage
 
 ## 📸 Screenshots
 
-~~~
 ![Login UI](assets/login.png)
 ![Students Dashboard](assets/students_dashboard.png)
 ![Teachers Dashboard](assets/teachers_dashboard.png)
 ![Admin Dashboard](assets/admin_dashboard.png)
-~~~
 
 ---
 
