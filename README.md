@@ -17,7 +17,7 @@ Edu-Workflow is a **full-stack academic management platform** designed to automa
 
 Instead of juggling multiple disconnected systems, it brings everything — **students, teachers, and administrators** — into one structured and efficient ecosystem.
 
-> Built with a focus on **real-world usability, system design, and clean UI/UX** — not just a demo project.
+> Built with a focus on **real-world usability, system design, and clean UI/UX** for institutions.
 
 ---
 
@@ -127,7 +127,7 @@ These issues slow down operations and reduce transparency.
 
 ## 🏗️ Project Architecture
 
-` ` `
+~~~
 Frontend (UI)
 │
 ├── Login System
@@ -144,42 +144,42 @@ Storage
 │
 ├── LocalStorage (session)
 ├── API-driven data
-` ` `
+~~~
 
 ---
 
-## 📸 Screenshots (Add Yours Here)
+## 📸 Screenshots
 
-> Tip: Add images like this after you upload them to GitHub:
-
-` ` `
+~~~
 ![Login UI](assets/login.png)
-![Dashboard](assets/dashboard.png)
-` ` `
+![Students Dashboard](assets/students_dashboard.png)
+![Teachers Dashboard](assets/teachers_dashboard.png)
+![Admin Dashboard](assets/admin_dashboard.png)
+~~~
 
 ---
 
 ## ⚙️ Setup & Run
 
 ### Backend
-` ` `
+~~~
 cd backend
 pip install -r requirements.txt
 python app.py
-` ` `
+~~~
 
 ### Frontend
 Open:
 
-` ` `
+~~~
 index.html
-` ` `
+~~~
 
 Make sure backend runs on:
 
-` ` `
+~~~
 http://127.0.0.1:5000
-` ` `
+~~~
 
 ---
 
