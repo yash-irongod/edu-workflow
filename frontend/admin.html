@@ -679,6 +679,7 @@
       © 2026 EduTrack — MLOps Admin Portal &nbsp;·&nbsp;
       <a href="#" style="color:var(--muted)">Help &amp; Support</a> &nbsp;·&nbsp;
       <a href="#" style="color:var(--muted)">Privacy Policy</a>
+      <br><br>Logged in as: <strong id="footerUser">System Admin</strong>
     </footer>
 
   </main>
@@ -688,11 +689,10 @@
 <div id="toastContainer" style="position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999"></div>
 
 <script>
-/* ── Admin search/filter ── */
+/* ── Admin user search/filter (inline, no dependency) ── */
 window.filterAdminUsers = function(query) {
-  const roleFilter = (document.getElementById("roleFilterSelect")?.value || "").toLowerCase();
+  const roleFilter = document.getElementById("roleFilterSelect")?.value.toLowerCase() || "";
   const q = (query || "").toLowerCase().trim();
-
   document.querySelectorAll("#adminUserTable tbody tr").forEach((row) => {
     const role = (row.getAttribute("data-role") || "").toLowerCase();
     const text = row.textContent.toLowerCase();
@@ -704,197 +704,5 @@ window.filterAdminUsers = function(query) {
 </script>
 
 <script src="login.js"></script>
-<script>
-(function () {
-  const role = localStorage.getItem("role");
-  const storedName = localStorage.getItem("name");
-  const fullName = (storedName && storedName.trim()) ? storedName.trim() : "System Admin";
-  const roleRoutes = {
-    student: "student.html",
-    teacher: "teacher.html",
-    admin: "admin.html"
-  };
-
-  if (!role) {
-    window.location.href = "index.html";
-    return;
-  }
-
-  if (role !== "admin") {
-    window.location.href = roleRoutes[role] || "index.html";
-    return;
-  }
-
-  const adminNameEl = document.getElementById("adminName");
-  const sidebarAdminNameEl = document.getElementById("sidebarAdminName");
-  const avatarEl = document.getElementById("avatarInitials");
-  const profileNameEl = document.getElementById("profileName");
-  const liveClockEl = document.getElementById("liveClock");
-  const logoutBtn = document.getElementById("logoutBtn");
-  const navItems = Array.from(document.querySelectorAll(".nav-item"));
-  const addUserForm = document.getElementById("addUserForm");
-  const noticeForm = document.getElementById("noticeForm");
-  const settingsForm = document.getElementById("settingsForm");
-  const chartCanvas = document.getElementById("mainChart");
-
-  function initialsFromName(name) {
-    const parts = name.split(/\s+/).filter(Boolean);
-    if (!parts.length) return "SA";
-    return parts
-      .slice(0, 2)
-      .map(part => part[0] ? part[0].toUpperCase() : "")
-      .join("") || "SA";
-  }
-
-  function updateClock() {
-    if (!liveClockEl) return;
-    liveClockEl.textContent = new Date().toLocaleString("en-IN", {
-      weekday: "short",
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  }
-
-  if (adminNameEl) adminNameEl.textContent = fullName;
-  if (sidebarAdminNameEl) sidebarAdminNameEl.textContent = fullName;
-  if (profileNameEl) profileNameEl.textContent = fullName;
-  if (avatarEl) avatarEl.textContent = initialsFromName(fullName);
-
-  updateClock();
-  setInterval(updateClock, 1000);
-
-  if (typeof window.showToast !== "function") {
-    window.showToast = function (message, type = "success") {
-      const container = document.getElementById("toastContainer");
-      if (!container) {
-        alert(message);
-        return;
-      }
-
-      const toast = document.createElement("div");
-      const success = type === "success" || type === "ok";
-      toast.textContent = message;
-      toast.style.cssText = [
-        "min-width:260px",
-        "max-width:360px",
-        "padding:12px 16px",
-        "border-radius:12px",
-        "font-family:DM Sans,sans-serif",
-        "font-size:14px",
-        "font-weight:500",
-        "backdrop-filter:blur(16px)",
-        "border:1px solid rgba(255,255,255,.12)",
-        "box-shadow:0 10px 24px rgba(0,0,0,.18)",
-        "transition:opacity .25s ease, transform .25s ease",
-        "opacity:1",
-        "transform:translateY(0)"
-      ].join(";");
-
-      if (success) {
-        toast.style.background = "rgba(16, 185, 129, 0.16)";
-        toast.style.color = "#b7f7d3";
-        toast.style.borderColor = "rgba(34,197,94,.45)";
-      } else {
-        toast.style.background = "rgba(239, 68, 68, 0.16)";
-        toast.style.color = "#ffc3c3";
-        toast.style.borderColor = "rgba(239,68,68,.45)";
-      }
-
-      container.appendChild(toast);
-
-      setTimeout(() => {
-        toast.style.opacity = "0";
-        toast.style.transform = "translateY(8px)";
-        setTimeout(() => toast.remove(), 250);
-      }, 2200);
-    };
-  }
-
-  navItems.forEach(item => {
-    item.addEventListener("click", () => {
-      navItems.forEach(i => i.classList.remove("active"));
-      item.classList.add("active");
-    });
-  });
-
-  if (addUserForm) {
-    addUserForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      showToast("New user created successfully.", "success");
-      addUserForm.reset();
-    });
-  }
-
-  if (noticeForm) {
-    noticeForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      showToast("Notice published successfully.", "success");
-      noticeForm.reset();
-    });
-  }
-
-  if (settingsForm) {
-    settingsForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      showToast("Settings saved successfully.", "success");
-    });
-  }
-
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", function () {
-      localStorage.clear();
-      window.location.href = "index.html";
-    });
-  }
-
-  if (window.Chart && chartCanvas) {
-    new Chart(chartCanvas, {
-      type: "bar",
-      data: {
-        labels: ["CSE", "ECE", "ME", "CE", "EE", "MBA"],
-        datasets: [
-          {
-            label: "Students",
-            data: [420, 380, 310, 290, 260, 180],
-            backgroundColor: "rgba(79, 70, 229, 0.55)"
-          },
-          {
-            label: "Faculty",
-            data: [28, 24, 20, 18, 17, 14],
-            backgroundColor: "rgba(99, 102, 241, 0.3)"
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            labels: {
-              color: "#cbd5e1",
-              font: {
-                family: "DM Sans"
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            ticks: { color: "#94a3b8" },
-            grid: { color: "rgba(148, 163, 184, 0.12)" }
-          },
-          y: {
-            ticks: { color: "#94a3b8" },
-            grid: { color: "rgba(148, 163, 184, 0.12)" }
-          }
-        }
-      }
-    });
-  }
-})();
-</script>
 </body>
 </html>

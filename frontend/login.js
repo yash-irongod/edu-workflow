@@ -1,4 +1,4 @@
-/* =========================================================
+/* ========================================================= 
    frontend/login.js
    Final integrated version
    - Teammate 2: stable login flow, validation, spinner, messages
@@ -97,29 +97,14 @@ function ensureToastHost() {
   return host;
 }
 
-function clearToastHost() {
-  const host = document.getElementById("toastContainer") || document.getElementById("toast");
-  if (!host) return;
-  host.innerHTML = "";
-}
-
 function showToast(message, type = "success") {
   const host = ensureToastHost();
+  const toast = document.createElement("div");
 
   const normalizedType =
     type === "ok" ? "success" :
     type === "bad" ? "error" :
     type;
-
-  const signature = `${normalizedType}::${message}`;
-  const now = Date.now();
-
-  if (!window.__toastHistory) window.__toastHistory = new Map();
-  const lastShown = window.__toastHistory.get(signature) || 0;
-  if (now - lastShown < 1400) return;
-  window.__toastHistory.set(signature, now);
-
-  const toast = document.createElement("div");
 
   let bg = "#0f172a";
   let color = "#fff";
@@ -144,15 +129,11 @@ function showToast(message, type = "success") {
 
   host.appendChild(toast);
 
-  while (host.children.length > 3) {
-    host.removeChild(host.firstChild);
-  }
-
   setTimeout(() => {
     toast.style.opacity = "0";
     toast.style.transform = "translateY(8px)";
     setTimeout(() => toast.remove(), 350);
-  }, 2600);
+  }, 2800);
 }
 
 window.showToast = showToast;
@@ -185,7 +166,6 @@ function clearSession() {
   localStorage.removeItem("name");
   localStorage.removeItem("rollNo");
   localStorage.removeItem("rememberMe");
-  localStorage.removeItem("rememberedEmail");
 }
 
 function handleLogout() {
@@ -499,17 +479,6 @@ function startClock() {
   const el = document.getElementById("liveClock");
   if (!el) return;
 
-  el.style.whiteSpace = "nowrap";
-  el.style.lineHeight = "1";
-  el.style.minWidth = "260px";
-  el.style.textAlign = "center";
-  el.style.display = "inline-flex";
-  el.style.alignItems = "center";
-  el.style.justifyContent = "center";
-  el.style.fontVariantNumeric = "tabular-nums";
-  el.style.letterSpacing = "0.01em";
-  el.style.transition = "none";
-
   function tick() {
     const now = new Date();
     el.textContent = now.toLocaleString("en-IN", {
@@ -525,8 +494,7 @@ function startClock() {
   }
 
   tick();
-  if (window.__clockTimer) clearInterval(window.__clockTimer);
-  window.__clockTimer = setInterval(tick, 1000);
+  setInterval(tick, 1000);
 }
 
 function initStudentChart(canvasId, dataPoints) {
@@ -610,77 +578,6 @@ function initAdminChart(canvasId) {
       maintainAspectRatio: false,
     },
   });
-}
-
-function setStatCardValueByLabel(labelText, valueText, forceHTML = false) {
-  const cards = qsa(".stat-card");
-  const needle = String(labelText).toLowerCase();
-
-  for (const card of cards) {
-    const labelEl = card.querySelector(".sc-label");
-    const valueEl = card.querySelector(".sc-value");
-    if (!labelEl || !valueEl) continue;
-
-    const label = labelEl.textContent.trim().toLowerCase();
-    if (label.includes(needle)) {
-      if (forceHTML) valueEl.innerHTML = valueText;
-      else valueEl.textContent = valueText;
-    }
-  }
-}
-
-function updateDashboardFromAPI(role, data) {
-  if (!data) return;
-
-  if (role === "student") {
-    if (typeof data.attendance !== "undefined") setStatCardValueByLabel("attendance", `${data.attendance}%`);
-    if (typeof data.cgpa !== "undefined") setStatCardValueByLabel("cgpa", `${data.cgpa}`);
-    if (typeof data.subjects !== "undefined") setStatCardValueByLabel("subjects", `${data.subjects}`);
-  }
-
-  if (role === "teacher") {
-    if (typeof data.classes !== "undefined") setStatCardValueByLabel("total classes", `${data.classes}`);
-    if (typeof data.students !== "undefined") setStatCardValueByLabel("total students", `${data.students}`);
-    if (typeof data.pending !== "undefined") setStatCardValueByLabel("pending tasks", `${data.pending}`);
-  }
-
-  if (role === "admin") {
-    if (typeof data.users !== "undefined") setStatCardValueByLabel("total users", `${data.users}`);
-    if (typeof data.reports !== "undefined") setStatCardValueByLabel("reports", `${data.reports}`);
-    if (typeof data.status !== "undefined") setStatCardValueByLabel("system status", `● ${String(data.status).toLowerCase() === "online" ? "Online" : data.status}`);
-  }
-}
-
-async function loadDashboardData(role) {
-  const endpoints = {
-    student: "/api/student/dashboard",
-    teacher: "/api/teacher/dashboard",
-    admin: "/api/admin/dashboard",
-  };
-
-  const endpoint = endpoints[role];
-  if (!endpoint) return;
-
-  try {
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-      method: "GET",
-      headers: {
-        "X-Role": role,
-      },
-    });
-
-    let data = {};
-    try {
-      data = await res.json();
-    } catch {
-      data = {};
-    }
-
-    if (!res.ok) return;
-    updateDashboardFromAPI(role, data);
-  } catch (err) {
-    console.warn("Dashboard API unavailable:", err);
-  }
 }
 
 /* =========================
@@ -834,48 +731,6 @@ function filterAdminUsers(query) {
 }
 
 window.filterAdminUsers = filterAdminUsers;
-
-function bindSidebarNavigation() {
-  const navItems = qsa(".sidebar-nav .nav-item");
-  const sections = qsa("main .section, .page-header");
-
-  if (!navItems.length) return;
-
-  function setActiveByHash(hash) {
-    navItems.forEach((item) => item.classList.remove("active"));
-
-    const target = navItems.find((item) => item.getAttribute("href") === hash);
-    if (target) target.classList.add("active");
-  }
-
-  navItems.forEach((item) => {
-    item.addEventListener("click", () => {
-      const href = item.getAttribute("href");
-      if (href && href.startsWith("#")) {
-        setTimeout(() => setActiveByHash(href), 0);
-      }
-    });
-  });
-
-  if ("IntersectionObserver" in window) {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-
-        if (visible && visible.target && visible.target.id) {
-          setActiveByHash(`#${visible.target.id}`);
-        }
-      },
-      { root: null, threshold: 0.35 }
-    );
-
-    sections.forEach((section) => {
-      if (section.id) observer.observe(section);
-    });
-  }
-}
 
 /* =========================
    DASHBOARD EVENT BINDING
@@ -1064,8 +919,6 @@ function initializeDashboardEvents() {
       noticeForm.reset();
     });
   }
-
-  bindSidebarNavigation();
 }
 
 /* =========================
@@ -1114,7 +967,6 @@ function renderDashboard() {
     initAdminChart("mainChart");
   }
 
-  loadDashboardData(role);
   initializeDashboardEvents();
 }
 
@@ -1144,7 +996,6 @@ async function doLogin() {
   isLoggingIn = true;
   setLoginButtonLoading(true);
   showMessage("");
-  clearToastHost();
 
   try {
     const res = await fetch(`${API_BASE}/login`, {
@@ -1169,11 +1020,6 @@ async function doLogin() {
 
     if (rememberCheck) {
       localStorage.setItem("rememberMe", rememberCheck.checked ? "true" : "false");
-      if (rememberCheck.checked) {
-        localStorage.setItem("rememberedEmail", email);
-      } else {
-        localStorage.removeItem("rememberedEmail");
-      }
     }
 
     showMessage("Login successful ✅", true);
@@ -1239,7 +1085,6 @@ function setupLoginPage() {
   const emailInput = document.getElementById("email");
   const passwordInput = document.getElementById("password") || document.getElementById("pwd");
   const toggleBtn = document.getElementById("togglePassword") || document.getElementById("eyeBtn");
-  const rememberCheck = qs(".remember input");
 
   if (loginBtn && !loginBtn.dataset.defaultText) {
     loginBtn.dataset.defaultText = loginBtn.textContent || "Login";
@@ -1254,14 +1099,6 @@ function setupLoginPage() {
   }
 
   if (emailInput && passwordInput) {
-    const remembered = localStorage.getItem("rememberMe") === "true";
-    const savedEmail = localStorage.getItem("rememberedEmail");
-
-    if (remembered && savedEmail && !emailInput.value) {
-      emailInput.value = savedEmail;
-      if (rememberCheck) rememberCheck.checked = true;
-    }
-
     document.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && (document.activeElement === emailInput || document.activeElement === passwordInput)) {
         doLogin();
@@ -1291,14 +1128,8 @@ function boot() {
   renderDashboard();
 }
 
-if (window.__eduWorkflowBooted) {
-  // Prevent duplicate init if the script gets included twice
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
 } else {
-  window.__eduWorkflowBooted = true;
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
-  } else {
-    boot();
-  }
+  boot();
 }
