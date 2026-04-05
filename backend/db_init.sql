@@ -166,3 +166,253 @@ INSERT INTO reports (user_id, content, created_at) VALUES
 -- =========================
 INSERT INTO notifications (user_id, message, created_at) VALUES
 (1, 'New marks uploaded', '2026-03-22');
+-- =========================
+-- FEE TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS fees (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id INTEGER,
+  amount INTEGER,
+  status TEXT CHECK(status IN ('paid', 'pending')),
+  payment_date TEXT,
+  FOREIGN KEY (student_id) REFERENCES users(id)
+);
+-- =========================
+-- GRIEVANCE TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS grievances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  subject TEXT,
+  message TEXT,
+  status TEXT DEFAULT 'pending',
+  created_at TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+-- =========================
+-- NOTICE TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS notices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT,
+  message TEXT,
+  created_at TEXT
+);
+-- =========================
+-- PLACEMENT TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS placements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company TEXT,
+  role TEXT,
+  package INTEGER,
+  deadline TEXT
+);
+-- FEES
+INSERT INTO fees (student_id, amount, status, payment_date) VALUES
+(1, 50000, 'paid', '2026-03-01');
+
+-- GRIEVANCES
+INSERT INTO grievances (user_id, subject, message, status, created_at) VALUES
+(1, 'Attendance Issue', 'Attendance not updated', 'pending', '2026-03-20');
+
+-- NOTICES
+INSERT INTO notices (title, message, created_at) VALUES
+('Holiday', 'College closed tomorrow', '2026-03-22');
+
+-- PLACEMENTS
+INSERT INTO placements (company, role, package, deadline) VALUES
+('TCS', 'Software Engineer', 700000, '2026-04-10');
+
+-- ========================
+-- department TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS departments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL
+);
+-- =========================
+-- courses TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS courses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  code TEXT,
+  department_id INTEGER,
+  teacher_id INTEGER,
+  FOREIGN KEY (department_id) REFERENCES departments(id),
+  FOREIGN KEY (teacher_id) REFERENCES users(id)
+);
+-- =========================
+-- TIME TABLE SLOTS 
+-- =========================
+CREATE TABLE IF NOT EXISTS timetable_slots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER,
+  day TEXT,
+  time TEXT,
+  room TEXT,
+  FOREIGN KEY (course_id) REFERENCES courses(id)
+);
+-- =========================
+-- Assignment TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER,
+  title TEXT NOT NULL,
+  description TEXT,
+  due_date TEXT,
+  FOREIGN KEY (course_id) REFERENCES courses(id)
+);
+-- =========================
+-- ASSIGNMENT SUBMISSIONS TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  assignment_id INTEGER,
+  student_id INTEGER,
+  file TEXT,
+  submitted_at TEXT,
+  FOREIGN KEY (assignment_id) REFERENCES assignments(id),
+  FOREIGN KEY (student_id) REFERENCES users(id)
+);
+-- =========================
+-- STUDY MATERIALS TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS study_materials (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER,
+  title TEXT,
+  file TEXT,
+  FOREIGN KEY (course_id) REFERENCES courses(id)
+);
+-- =========================
+-- Library Books TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS library_books (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT,
+  author TEXT,
+  available INTEGER DEFAULT 1
+);
+-- =========================
+-- LIBRARY LOAN TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS library_loans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_id INTEGER,
+  student_id INTEGER,
+  issue_date TEXT,
+  return_date TEXT,
+  FOREIGN KEY (book_id) REFERENCES library_books(id),
+  FOREIGN KEY (student_id) REFERENCES users(id)
+);
+-- =========================
+-- PLACEMENT APPLICATIONS TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS placement_applications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  placement_id INTEGER,
+  student_id INTEGER,
+  status TEXT DEFAULT 'applied',
+  FOREIGN KEY (placement_id) REFERENCES placements(id),
+  FOREIGN KEY (student_id) REFERENCES users(id)
+);
+-- =========================
+-- SYSTEM SETTINGS TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS system_settings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT,
+  value TEXT
+);
+-- =========================
+-- activity feed TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS activity_feed (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  activity TEXT,
+  created_at TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+-- =========================
+-- AUDIT LOGS TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  action TEXT NOT NULL,
+  created_at TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+-- ================================
+-- 🏢 DEPARTMENTS
+-- ================================
+INSERT INTO departments (name) VALUES
+('Computer Science'),
+('Mechanical');
+
+-- ================================
+-- 📘 COURSES
+-- ================================
+INSERT INTO courses (name, code, department_id, teacher_id) VALUES
+('B.Tech CSE','CSE101',1,2);
+
+-- ================================
+-- 📅 TIMETABLE
+-- ================================
+INSERT INTO timetable_slots (course_id, day, time, room) VALUES
+(1,'Monday','10:00 AM','Room 101'),
+(1,'Tuesday','11:00 AM','Room 102');
+
+-- ================================
+-- 📝 ASSIGNMENTS
+-- ================================
+INSERT INTO assignments (course_id, title, description, due_date) VALUES
+(1,'Math Assignment','Solve problems','2026-04-10');
+
+-- ================================
+-- 📤 ASSIGNMENT SUBMISSIONS
+-- ================================
+INSERT INTO assignment_submissions (assignment_id, student_id, file, submitted_at) VALUES
+(1,1,'assignment1.pdf','2026-04-02');
+
+-- ================================
+-- 📚 STUDY MATERIAL
+-- ================================
+INSERT INTO study_materials (course_id, title, file) VALUES
+(1,'Lecture Notes','notes.pdf');
+
+-- ================================
+-- 📚 LIBRARY BOOKS
+-- ================================
+INSERT INTO library_books (title, author, available) VALUES
+('Data Structures','Cormen',1);
+
+-- ================================
+-- 📚 LIBRARY LOANS
+-- ================================
+INSERT INTO library_loans (book_id, student_id, issue_date, return_date) VALUES
+(1,1,'2026-04-01','2026-04-10');
+
+-- ================================
+-- 📊 ACTIVITY FEED
+-- ================================
+INSERT INTO activity_feed (user_id, activity, created_at) VALUES
+(1,'Logged in','2026-04-01'),
+(2,'Uploaded assignment','2026-04-02');
+
+-- ================================
+-- 🧾 AUDIT LOGS
+-- ================================
+INSERT INTO audit_logs (user_id, action, created_at) VALUES
+(3,'Created course','2026-04-01');
+
+-- ================================
+-- ⚙️ SYSTEM SETTINGS
+-- ================================
+INSERT INTO system_settings (key, value) VALUES
+('site_name','EduWorkflow'),
+('semester','2');
