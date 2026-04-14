@@ -4,506 +4,69 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Student Dashboard | EduWorkflow</title>
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
-<body>
-<div class="app-shell">
-
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <div class="logo">Edu<span>Workflow</span></div>
-      <span class="role-badge">Student</span>
-    </div>
-
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">Main</div>
-      <a href="#overview" class="nav-item active"><span class="nav-icon">📊</span> Dashboard</a>
-      <a href="#timetable" class="nav-item"><span class="nav-icon">🕐</span> Timetable</a>
-      <a href="#attendance" class="nav-item"><span class="nav-icon">📋</span> Attendance</a>
-      <a href="#assignments" class="nav-item"><span class="nav-icon">📝</span> Assignments</a>
-      <a href="#results" class="nav-item"><span class="nav-icon">🏆</span> Results &amp; Grades</a>
-      <a href="#exams" class="nav-item"><span class="nav-icon">📅</span> Exam Schedule</a>
-
-      <div class="nav-section-label">Resources</div>
-      <a href="#materials" class="nav-item"><span class="nav-icon">📚</span> Study Material</a>
-      <a href="#library" class="nav-item"><span class="nav-icon">🏛️</span> Library</a>
-      <a href="#notices" class="nav-item"><span class="nav-icon">📣</span> Notices</a>
-
-      <div class="nav-section-label">Career</div>
-      <a href="#placement" class="nav-item"><span class="nav-icon">💼</span> Placement</a>
-
-      <div class="nav-section-label">Account</div>
-      <a href="#fees" class="nav-item"><span class="nav-icon">💰</span> Fees &amp; Finance</a>
-      <a href="#profile" class="nav-item"><span class="nav-icon">👤</span> Profile</a>
-      <a href="#grievance" class="nav-item"><span class="nav-icon">🔔</span> Grievance</a>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="user-chip">
-        <div class="user-avatar" id="avatarInitials">PS</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebarName">Priya Sharma</div>
-          <div class="user-role">Roll: 2024CS0472</div>
+<body data-role="student">
+  <div class="dashboard-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-lockup">
+        <div class="brand-mark">EW</div>
+        <div>
+          <div class="brand-name">EduWorkflow</div>
+          <div class="brand-subtitle">Student Portal</div>
         </div>
       </div>
-      <button class="logout-btn" id="logoutBtn">⎋ Sign Out</button>
-    </div>
-  </aside>
-
-  <main class="main-content">
-
-    <div class="page-header" id="overview">
-      <div class="page-header-text">
-        <h1>Good morning, <span id="studentName">Priya</span> 👋</h1>
-        <p>B.Tech CSE (AI/ML) &nbsp;·&nbsp; Semester VI &nbsp;·&nbsp; Session 2025–26</p>
-      </div>
-      <div class="header-meta" id="liveClock">—</div>
-    </div>
-
-    <div class="alert alert-warning">
-      <span class="alert-icon">⚠️</span>
-      <div><strong>Attendance Warning:</strong> Cloud Computing (70%) is below the 75% minimum threshold. Attend all upcoming classes to avoid debarment.</div>
-    </div>
-
-    <div class="stats-grid">
-      <div class="stat-card accent">
-        <div class="sc-icon">🎯</div>
-        <div class="sc-value">8.74</div>
-        <div class="sc-label">Cumulative CGPA</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-icon">🏅</div>
-        <div class="sc-value">12 <small style="font-size:14px;font-weight:400">/180</small></div>
-        <div class="sc-label">Class Rank</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-icon">📋</div>
-        <div class="sc-value">82%</div>
-        <div class="sc-label">Overall Attendance</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-icon">📝</div>
-        <div class="sc-value">3</div>
-        <div class="sc-label">Pending Assignments</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-icon">✅</div>
-        <div class="sc-value">Paid</div>
-        <div class="sc-label">Fee Status</div>
-      </div>
-      <div class="stat-card">
-        <div class="sc-icon">📘</div>
-        <div class="sc-value">148 <small style="font-size:14px;font-weight:400">/180</small></div>
-        <div class="sc-label">Credits Earned</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-header">
-        <span class="section-title">📈 Cumulative CGPA Trend</span>
-        <span class="section-badge">Semesters I – VI</span>
-      </div>
-      <div class="chart-wrap">
-        <canvas id="mainChart"></canvas>
-      </div>
-    </div>
-
-    <div class="section" id="timetable">
-      <div class="section-header">
-        <span class="section-title">🕐 Today's Timetable — Thursday, 27 March 2026</span>
-        <span class="section-badge">6 slots</span>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Time</th><th>Subject</th><th>Faculty</th><th>Room</th><th>Type</th><th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>08:30 – 09:30</td><td>Deep Learning</td><td>Dr. Mehra</td><td>Room A-204</td>
-              <td><span class="badge badge-info">Lecture</span></td>
-              <td><span class="badge badge-neutral">Completed</span></td>
-            </tr>
-            <tr>
-              <td>09:45 – 10:45</td><td><strong>MLOps Practicals</strong></td><td>Prof. Ahuja</td><td>Lab-3</td>
-              <td><span class="badge badge-warning">Practical</span></td>
-              <td><span class="badge badge-live">⬤ LIVE NOW</span></td>
-            </tr>
-            <tr>
-              <td>11:00 – 12:00</td><td>NLP &amp; Transformers</td><td>Dr. Kapoor</td><td>Room B-101</td>
-              <td><span class="badge badge-info">Lecture</span></td>
-              <td><span class="badge badge-info">Upcoming</span></td>
-            </tr>
-            <tr>
-              <td>13:00 – 14:00</td><td>Lunch Break</td><td>—</td><td>Cafeteria</td>
-              <td>—</td><td>—</td>
-            </tr>
-            <tr>
-              <td>14:00 – 15:00</td><td>Cloud Computing</td><td>Prof. Singh</td><td>Room A-310</td>
-              <td><span class="badge badge-info">Lecture</span></td>
-              <td><span class="badge badge-info">Upcoming</span></td>
-            </tr>
-            <tr>
-              <td>15:15 – 16:15</td><td>Reinforcement Learning</td><td>Dr. Bose</td><td>Room C-205</td>
-              <td><span class="badge badge-info">Lecture</span></td>
-              <td><span class="badge badge-info">Upcoming</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section" id="attendance">
-      <div class="section-header">
-        <span class="section-title">📋 Subject-wise Attendance — Semester VI</span>
-        <span class="section-badge">Min. 75% required</span>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr><th>Subject</th><th>Held</th><th>Attended</th><th>Attendance %</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Deep Learning</td><td>25</td><td>22</td><td>88%</td><td><span class="badge badge-success">OK</span></td></tr>
-            <tr><td>MLOps Practicals</td><td>22</td><td>20</td><td>91%</td><td><span class="badge badge-success">OK</span></td></tr>
-            <tr><td>NLP &amp; Transformers</td><td>25</td><td>19</td><td>76%</td><td><span class="badge badge-success">OK</span></td></tr>
-            <tr>
-              <td><strong>Cloud Computing</strong></td><td>20</td><td>14</td>
-              <td><strong style="color:var(--danger)">70%</strong></td>
-              <td><span class="badge badge-danger">⚠ Below 75%</span></td>
-            </tr>
-            <tr><td>Reinforcement Learning</td><td>20</td><td>17</td><td>85%</td><td><span class="badge badge-success">OK</span></td></tr>
-            <tr><td>Elective: Data Ethics</td><td>15</td><td>12</td><td>80%</td><td><span class="badge badge-success">OK</span></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section" id="assignments">
-      <div class="section-header">
-        <span class="section-title">📝 Assignments &amp; Deadlines</span>
-        <span class="section-badge">3 pending</span>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr><th>#</th><th>Title</th><th>Subject</th><th>Max Marks</th><th>Due Date</th><th>Priority</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>1</td><td>Lab Report: CNN Architecture</td><td>Deep Learning</td><td>15</td>
-              <td><strong style="color:var(--danger)">26 Mar 2026 (Today)</strong></td>
-              <td><span class="badge badge-danger">HIGH</span></td>
-              <td><span class="badge badge-warning">Pending</span></td>
-            </tr>
-            <tr>
-              <td>2</td><td>Mini Project Proposal</td><td>MLOps</td><td>20</td><td>29 Mar 2026</td>
-              <td><span class="badge badge-warning">MEDIUM</span></td>
-              <td><span class="badge badge-warning">Pending</span></td>
-            </tr>
-            <tr>
-              <td>3</td><td>Attention Mechanism Essay</td><td>NLP</td><td>10</td><td>02 Apr 2026</td>
-              <td><span class="badge badge-warning">MEDIUM</span></td>
-              <td><span class="badge badge-warning">Pending</span></td>
-            </tr>
-            <tr>
-              <td>4</td><td>AWS Deployment Exercise</td><td>Cloud Computing</td><td>25</td><td>05 Apr 2026</td>
-              <td><span class="badge badge-neutral">LOW</span></td>
-              <td><span class="badge badge-warning">Pending</span></td>
-            </tr>
-            <tr>
-              <td>5</td><td>Policy Gradient Implementation</td><td>Reinforcement Learning</td><td>30</td><td>10 Apr 2026</td>
-              <td><span class="badge badge-neutral">LOW</span></td>
-              <td><span class="badge badge-warning">Pending</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section" id="results">
-      <div class="section-header">
-        <span class="section-title">🏆 Results &amp; Grades — Semester VI</span>
-        <span class="section-badge">In Progress</span>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr><th>Subject</th><th>Internal (50)</th><th>External (100)</th><th>Total (150)</th><th>Grade Point</th><th>Letter</th><th>Credits</th><th>Credit Points</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Deep Learning</td><td>46</td><td>72</td><td>118</td><td>9.2</td><td><span class="badge badge-success">A+</span></td><td>4</td><td>36.8</td></tr>
-            <tr><td>MLOps Practicals</td><td>43</td><td>68</td><td>111</td><td>8.8</td><td><span class="badge badge-success">A</span></td><td>4</td><td>35.2</td></tr>
-            <tr><td>NLP &amp; Transformers</td><td>41</td><td>65</td><td>106</td><td>8.5</td><td><span class="badge badge-success">A</span></td><td>4</td><td>34.0</td></tr>
-            <tr><td>Cloud Computing</td><td>38</td><td>60</td><td>98</td><td>7.8</td><td><span class="badge badge-info">B+</span></td><td>3</td><td>23.4</td></tr>
-            <tr><td>Reinforcement Learning</td><td>44</td><td>70</td><td>114</td><td>9.0</td><td><span class="badge badge-success">A+</span></td><td>4</td><td>36.0</td></tr>
-            <tr><td>Elective: Data Ethics</td><td>39</td><td>62</td><td>101</td><td>8.1</td><td><span class="badge badge-success">A</span></td><td>2</td><td>16.2</td></tr>
-          </tbody>
-          <tfoot>
-            <tr><td colspan="6"><strong>Semester SGPA</strong></td><td><strong>21</strong></td><td><strong>8.74</strong></td></tr>
-          </tfoot>
-        </table>
-      </div>
-    </div>
-
-    <div class="section" id="exams">
-      <div class="section-header">
-        <span class="section-title">📅 End-Semester Exam Schedule</span>
-        <span class="section-badge">May 2026</span>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr><th>Subject</th><th>Date</th><th>Day</th><th>Time</th><th>Venue</th><th>Duration</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Deep Learning</td><td>02 May 2026</td><td>Saturday</td><td>10:00 AM</td><td>Block A – Hall 1</td><td>3 hrs</td></tr>
-            <tr><td>MLOps Practicals</td><td>05 May 2026</td><td>Tuesday</td><td>02:00 PM</td><td>Lab Block – Lab 3</td><td>3 hrs</td></tr>
-            <tr><td>NLP &amp; Transformers</td><td>08 May 2026</td><td>Friday</td><td>10:00 AM</td><td>Block B – Hall 2</td><td>3 hrs</td></tr>
-            <tr><td>Cloud Computing</td><td>10 May 2026</td><td>Sunday</td><td>10:00 AM</td><td>Block A – Hall 3</td><td>3 hrs</td></tr>
-            <tr><td>Reinforcement Learning</td><td>13 May 2026</td><td>Wednesday</td><td>10:00 AM</td><td>Block C – Hall 1</td><td>3 hrs</td></tr>
-            <tr><td>Elective: Data Ethics</td><td>15 May 2026</td><td>Friday</td><td>02:00 PM</td><td>Block B – Hall 4</td><td>2 hrs</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section" id="materials">
-      <div class="section-header">
-        <span class="section-title">📚 Study Material</span>
-        <span class="section-badge">4 items</span>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr><th>Subject</th><th>Material Title</th><th>Type</th><th>Uploaded By</th><th>Date</th><th>Action</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Deep Learning</td><td>Unit 3: Convolutional Networks Slides</td>
-              <td><span class="badge badge-danger">PDF</span></td><td>Dr. Mehra</td><td>22 Mar 2026</td>
-              <td><button class="btn btn-sm btn-outline" type="button" onclick="showToast('Download started: CNN Slides.pdf', 'success')">⬇ Download</button></td>
-            </tr>
-            <tr>
-              <td>MLOps</td><td>Docker &amp; Kubernetes Cheatsheet</td>
-              <td><span class="badge badge-danger">PDF</span></td><td>Prof. Ahuja</td><td>20 Mar 2026</td>
-              <td><button class="btn btn-sm btn-outline" type="button" onclick="showToast('Download started: K8s-Cheatsheet.pdf', 'success')">⬇ Download</button></td>
-            </tr>
-            <tr>
-              <td>NLP</td><td>BERT &amp; GPT Architecture Notes</td>
-              <td><span class="badge badge-danger">PDF</span></td><td>Dr. Kapoor</td><td>18 Mar 2026</td>
-              <td><button class="btn btn-sm btn-outline" type="button" onclick="showToast('Download started: BERT-GPT-Notes.pdf', 'success')">⬇ Download</button></td>
-            </tr>
-            <tr>
-              <td>Cloud Computing</td><td>AWS Services Overview — Recorded Lecture</td>
-              <td><span class="badge badge-warning">Video</span></td><td>Prof. Singh</td><td>15 Mar 2026</td>
-              <td><button class="btn btn-sm btn-accent" type="button" onclick="showToast('Opening video player...', 'success')">▶ Watch</button></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section" id="library">
-      <div class="section-header">
-        <span class="section-title">🏛️ Library — Borrowed Books</span>
-        <span class="section-badge">2 issued</span>
-      </div>
-      <div class="alert alert-danger" style="margin-bottom:16px">
-        <span class="alert-icon">📕</span>
-        <div><strong>Overdue:</strong> "Deep Learning" by Goodfellow et al. — ₹40 fine accrued. Avail Library Fine Amnesty Week (26 Mar – 1 Apr) to waive fines.</div>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr><th>Book Title</th><th>Author</th><th>Issue Date</th><th>Due Date</th><th>Status</th><th>Fine (₹)</th><th>Action</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Deep Learning (Goodfellow et al.)</td><td>Ian Goodfellow</td><td>01 Mar 2026</td><td>22 Mar 2026</td>
-              <td><span class="badge badge-danger">Overdue</span></td><td>₹40</td>
-              <td><button class="btn btn-sm btn-outline" type="button" onclick="showToast('Renewal request sent for Deep Learning.', 'success')">Renew</button></td>
-            </tr>
-            <tr>
-              <td>Hands-On Machine Learning</td><td>Aurelien Geron</td><td>10 Mar 2026</td><td>31 Mar 2026</td>
-              <td><span class="badge badge-success">Issued</span></td><td>—</td>
-              <td><button class="btn btn-sm btn-outline" type="button" onclick="showToast('Renewal request sent for Hands-On ML.', 'success')">Renew</button></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section" id="notices">
-      <div class="section-header">
-        <span class="section-title">📣 Notices &amp; Announcements</span>
-        <span class="section-badge">5 active</span>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr><th>#</th><th>Title</th><th>Category</th><th>Posted By</th><th>Date</th><th>Priority</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>1</td><td>End-Semester Exam Schedule Released</td><td>Examination</td><td>Exam Cell</td><td>25 Mar 2026</td><td><span class="badge badge-danger">HIGH</span></td></tr>
-            <tr><td>2</td><td>Mini Project Submission Portal Now Open</td><td>Academic</td><td>HOD, CSE</td><td>24 Mar 2026</td><td><span class="badge badge-danger">HIGH</span></td></tr>
-            <tr><td>3</td><td>Library Fine Amnesty Week (26 Mar – 1 Apr)</td><td>Library</td><td>Library Committee</td><td>20 Mar 2026</td><td><span class="badge badge-warning">MEDIUM</span></td></tr>
-            <tr><td>4</td><td>Sports Day Registrations Open</td><td>Extra-Curricular</td><td>Sports Cell</td><td>18 Mar 2026</td><td><span class="badge badge-neutral">LOW</span></td></tr>
-            <tr><td>5</td><td>Campus Placement Drive — TCS &amp; Infosys (Apr 5)</td><td>Placement</td><td>T&amp;P Cell</td><td>15 Mar 2026</td><td><span class="badge badge-danger">HIGH</span></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section" id="placement">
-      <div class="section-header">
-        <span class="section-title">💼 Placement &amp; Internship Drive</span>
-        <span class="section-badge">4 opportunities</span>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr><th>Company</th><th>Role</th><th>Drive Date</th><th>CTC / Stipend</th><th>Min CGPA</th><th>Status</th><th>Action</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>TCS</td><td>Software Engineer</td><td>05 Apr 2026</td><td>₹7 LPA</td><td>7.0</td>
-              <td><span class="badge badge-success">Open</span></td>
-              <td><button class="btn btn-sm btn-accent" type="button" onclick="applyPlacement(this, 'TCS')">Apply</button></td>
-            </tr>
-            <tr>
-              <td>Infosys</td><td>Systems Engineer</td><td>05 Apr 2026</td><td>₹6.5 LPA</td><td>7.0</td>
-              <td><span class="badge badge-success">Open</span></td>
-              <td><button class="btn btn-sm btn-accent" type="button" onclick="applyPlacement(this, 'Infosys')">Apply</button></td>
-            </tr>
-            <tr>
-              <td>Google</td><td>SWE Intern — ML</td><td>20 Apr 2026</td><td>₹80,000/mo</td><td>8.5</td>
-              <td><span class="badge badge-success">Open</span></td>
-              <td><button class="btn btn-sm btn-accent" type="button" onclick="applyPlacement(this, 'Google')">Apply</button></td>
-            </tr>
-            <tr>
-              <td>Amazon</td><td>SDE — AI/ML</td><td>Closed</td><td>₹32 LPA</td><td>8.0</td>
-              <td><span class="badge badge-info">Shortlisted</span></td>
-              <td><button class="btn btn-sm btn-outline" type="button" onclick="showToast('Loading Amazon application status...', 'success')">View Status</button></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="section" id="fees">
-      <div class="section-header">
-        <span class="section-title">💰 Fees &amp; Finance — Semester VI</span>
-        <span class="section-badge">₹3,700 pending</span>
-      </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <thead>
-            <tr><th>Fee Head</th><th>Amount (₹)</th><th>Due Date</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Tuition Fee</td><td>₹45,000</td><td>10 Jan 2026</td><td><span class="badge badge-success">Paid</span></td></tr>
-            <tr><td>Hostel Fee</td><td>₹18,000</td><td>10 Jan 2026</td><td><span class="badge badge-success">Paid</span></td></tr>
-            <tr><td>Library Fine</td><td>₹40</td><td>31 Mar 2026</td><td><span class="badge badge-danger">Unpaid</span></td></tr>
-            <tr><td>Exam Form Fee</td><td>₹1,500</td><td>05 Apr 2026</td><td><span class="badge badge-danger">Unpaid</span></td></tr>
-            <tr><td>Lab Charges</td><td>₹2,160</td><td>05 Apr 2026</td><td><span class="badge badge-danger">Unpaid</span></td></tr>
-          </tbody>
-          <tfoot>
-            <tr><td colspan="2"><strong>Total Pending</strong></td><td colspan="2"><strong>₹3,700</strong></td></tr>
-          </tfoot>
-        </table>
-      </div>
-      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn btn-accent" type="button" onclick="payFees()">💳 Pay Now</button>
-        <button class="btn btn-outline" type="button" onclick="showToast('Fee receipt downloaded.', 'success')">⬇ Download Receipt</button>
-      </div>
-    </div>
-
-    <div class="section" id="profile">
-      <div class="section-header">
-        <span class="section-title">👤 Student Profile</span>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-outline btn-sm" type="button" onclick="showToast('ID Card downloaded.', 'success')">⬇ ID Card</button>
-          <button class="btn btn-outline btn-sm" type="button" onclick="showToast('Transcript downloaded.', 'success')">⬇ Transcript</button>
-          <button class="btn btn-outline btn-sm" type="button" onclick="showToast('Bonafide Certificate downloaded.', 'success')">⬇ Bonafide</button>
+      <nav class="sidebar-nav">
+        <button class="nav-link active" data-target="overviewSection">Home</button>
+        <button class="nav-link" data-target="attendanceSection">Attendance</button>
+        <button class="nav-link" data-target="timetableSection">Timetable</button>
+        <button class="nav-link" data-target="resultsSection">Results</button>
+        <button class="nav-link" data-target="servicesSection">Campus Desk</button>
+        <button class="nav-link" data-target="requestsSection">Requests</button>
+        <button class="nav-link" data-target="profileSection">Profile</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="identity-card">
+          <div class="avatar" id="sidebarAvatar">PS</div>
+          <div>
+            <div class="identity-name" id="sidebarName">Student</div>
+            <div class="identity-meta" id="sidebarMeta">Roll</div>
+          </div>
         </div>
+        <button class="ghost-btn full-width" id="logoutBtn">Sign Out</button>
       </div>
-      <div style="overflow-x:auto">
-        <table class="data-table">
-          <tbody>
-            <tr><td style="width:200px;color:var(--muted)">Full Name</td><td><strong id="profileName">Priya Sharma</strong></td></tr>
-            <tr><td style="color:var(--muted)">Roll Number</td><td>2024CS0472</td></tr>
-            <tr><td style="color:var(--muted)">Programme</td><td>B.Tech — Computer Science &amp; Engineering (AI/ML)</td></tr>
-            <tr><td style="color:var(--muted)">Semester / Section</td><td>VI / Section B</td></tr>
-            <tr><td style="color:var(--muted)">Batch</td><td>2022 – 2026</td></tr>
-            <tr><td style="color:var(--muted)">Date of Birth</td><td>14 August 2004</td></tr>
-            <tr><td style="color:var(--muted)">Email</td><td><a href="#">[email protected]</a></td></tr>
-            <tr><td style="color:var(--muted)">Phone</td><td>+91 98765 43210</td></tr>
-            <tr><td style="color:var(--muted)">Hostel</td><td>Kaveri Girls Hostel, Room 214</td></tr>
-            <tr><td style="color:var(--muted)">Mentor / Advisor</td><td>Dr. R. Mehra</td></tr>
-            <tr><td style="color:var(--muted)">Cumulative CGPA</td><td><strong>8.74</strong></td></tr>
-            <tr><td style="color:var(--muted)">Credits Earned</td><td>148 / 180</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    </aside>
 
-    <div class="section" id="grievance">
-      <div class="section-header">
-        <span class="section-title">🔔 Raise a Grievance</span>
-        <span class="section-badge">MLOps Academic Cell</span>
-      </div>
-      <form id="grievanceForm" style="max-width:560px">
-        <div class="form-group">
-          <label for="grievance_type">Grievance Type</label>
-          <select id="grievance_type" name="grievance_type" required>
-            <option value="">— Select Type —</option>
-            <option>Academic</option>
-            <option>Fees</option>
-            <option>Hostel</option>
-            <option>Library</option>
-            <option>Examination</option>
-            <option>Other</option>
-          </select>
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">Academic portal</div>
+          <h1 class="page-title" id="pageTitle">Student Portal</h1>
+          <p class="page-subtitle" id="pageSubtitle">Loading your academic record...</p>
         </div>
-        <div class="form-group">
-          <label for="grievance_subject">Subject</label>
-          <input type="text" id="grievance_subject" placeholder="Brief subject of your grievance" required />
+        <div class="topbar-meta">
+          <button class="icon-btn mobile-only" id="menuToggleBtn" title="Open menu">Menu</button>
+          <div class="clock-chip" id="liveClock">--</div>
+          <button class="icon-btn" id="refreshBtn" title="Refresh data">Refresh</button>
         </div>
-        <div class="form-group">
-          <label for="grievance_desc">Description</label>
-          <textarea id="grievance_desc" rows="5" placeholder="Describe your grievance in detail..."></textarea>
-        </div>
-        <div class="form-group">
-          <label for="grievance_attach">Attach Supporting Document</label>
-          <input type="file" id="grievance_attach" accept=".pdf,.jpg,.png,.docx" />
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button type="submit" class="btn btn-primary">📨 Submit Grievance</button>
-          <button type="reset" class="btn btn-outline">✕ Clear</button>
-        </div>
-      </form>
-    </div>
+      </header>
 
-    <footer style="text-align:center;padding:32px 0 16px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);margin-top:8px">
-      © 2026 EduWorkflow — Student Portal &nbsp;·&nbsp;
-      <a href="#" style="color:var(--muted)">Help &amp; Support</a> &nbsp;·&nbsp;
-      <a href="#" style="color:var(--muted)">Privacy Policy</a> &nbsp;·&nbsp;
-      <a href="#" style="color:var(--muted)">Contact Admin</a>
-      <br><br>Logged in as: <strong id="footerUser">Priya Sharma (2024CS0472)</strong>
-    </footer>
+      <section id="overviewSection" class="view-section"></section>
+      <section id="attendanceSection" class="view-section hidden"></section>
+      <section id="timetableSection" class="view-section hidden"></section>
+      <section id="resultsSection" class="view-section hidden"></section>
+      <section id="servicesSection" class="view-section hidden"></section>
+      <section id="requestsSection" class="view-section hidden"></section>
+      <section id="profileSection" class="view-section hidden"></section>
+    </main>
+  </div>
+  <div class="sidebar-scrim" id="sidebarScrim"></div>
 
-  </main>
-</div>
-
-<div id="toastContainer" style="position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:9999"></div>
-
-<script src="login.js"></script>
+  <div id="toastContainer" class="toast-stack"></div>
+  <script src="api.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

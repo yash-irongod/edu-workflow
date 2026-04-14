@@ -1,418 +1,408 @@
--- =========================
--- CLEAN START
--- =========================
-DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS subjects;
-DROP TABLE IF EXISTS attendance;
-DROP TABLE IF EXISTS marks;
-DROP TABLE IF EXISTS workflow_requests;
-DROP TABLE IF EXISTS classes;
-DROP TABLE IF EXISTS reports;
-DROP TABLE IF EXISTS notifications;
+PRAGMA foreign_keys = OFF;
 
--- =========================
--- USERS
--- =========================
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS workflow_requests;
+DROP TABLE IF EXISTS placement_applications;
+DROP TABLE IF EXISTS placements;
+DROP TABLE IF EXISTS library_loans;
+DROP TABLE IF EXISTS library_books;
+DROP TABLE IF EXISTS fee_items;
+DROP TABLE IF EXISTS scholarship_awards;
+DROP TABLE IF EXISTS grievances;
+DROP TABLE IF EXISTS notices;
+DROP TABLE IF EXISTS assignment_submissions;
+DROP TABLE IF EXISTS assignments;
+DROP TABLE IF EXISTS marks;
+DROP TABLE IF EXISTS assessments;
+DROP TABLE IF EXISTS course_results;
+DROP TABLE IF EXISTS semester_performance;
+DROP TABLE IF EXISTS attendance_records;
+DROP TABLE IF EXISTS attendance_sessions;
+DROP TABLE IF EXISTS timetable_slots;
+DROP TABLE IF EXISTS course_enrollments;
+DROP TABLE IF EXISTS courses;
+DROP TABLE IF EXISTS admin_profiles;
+DROP TABLE IF EXISTS teacher_profiles;
+DROP TABLE IF EXISTS student_profiles;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS departments;
+DROP TABLE IF EXISTS system_settings;
+
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE departments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  hod_name TEXT,
+  active INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT UNIQUE NOT NULL,
+  email TEXT NOT NULL UNIQUE,
   password TEXT NOT NULL,
-  role TEXT NOT NULL,
-  name TEXT NOT NULL
-);
-
--- =========================
--- SUBJECTS
--- =========================
-CREATE TABLE subjects (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  role TEXT NOT NULL CHECK (role IN ('student', 'teacher', 'admin')),
   name TEXT NOT NULL,
-  code TEXT NOT NULL,
-  teacher_id INTEGER,
-  FOREIGN KEY (teacher_id) REFERENCES users(id)
-);
-
--- =========================
--- CLASSES
--- =========================
-CREATE TABLE classes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  subject_id INTEGER,
-  teacher_id INTEGER,
-  name TEXT,
-  FOREIGN KEY (subject_id) REFERENCES subjects(id),
-  FOREIGN KEY (teacher_id) REFERENCES users(id)
-);
-
--- =========================
--- ATTENDANCE
--- =========================
-CREATE TABLE attendance (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  student_id INTEGER NOT NULL,
-  subject_id INTEGER NOT NULL,
-  date TEXT NOT NULL,
-  status TEXT NOT NULL,
-  FOREIGN KEY (student_id) REFERENCES users(id),
-  FOREIGN KEY (subject_id) REFERENCES subjects(id)
-);
-
--- =========================
--- MARKS
--- =========================
-CREATE TABLE marks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  student_id INTEGER NOT NULL,
-  subject_id INTEGER NOT NULL,
-  exam_name TEXT NOT NULL,
-  score INTEGER NOT NULL,
-  max_score INTEGER NOT NULL,
-  FOREIGN KEY (student_id) REFERENCES users(id),
-  FOREIGN KEY (subject_id) REFERENCES subjects(id)
-);
-
--- =========================
--- WORKFLOW REQUESTS
--- =========================
-CREATE TABLE workflow_requests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  student_id INTEGER,
-  type TEXT,
-  status TEXT,
-  created_at TEXT,
-  FOREIGN KEY (student_id) REFERENCES users(id)
-);
-
--- =========================
--- REPORTS
--- =========================
-CREATE TABLE reports (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER,
-  content TEXT,
-  created_at TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
--- =========================
--- NOTIFICATIONS
--- =========================
-CREATE TABLE notifications (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER,
-  message TEXT,
-  is_read INTEGER DEFAULT 0,
-  created_at TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
--- =========================
--- SAMPLE USERS
--- =========================
-INSERT INTO users (email, password, role, name) VALUES
-('s@x.com', '123', 'student', 'Student One'),
-('t@x.com', '123', 'teacher', 'Teacher One'),
-('a@x.com', '123', 'admin', 'Admin One');
-
--- =========================
--- SAMPLE SUBJECTS
--- =========================
-INSERT INTO subjects (name, code, teacher_id) VALUES
-('Mathematics', 'M101', 2),
-('Physics', 'P101', 2),
-('Computer Science', 'CS101', 2);
-
--- =========================
--- SAMPLE CLASSES
--- =========================
-INSERT INTO classes (subject_id, teacher_id, name) VALUES
-(1, 2, 'Class A'),
-(2, 2, 'Class B'),
-(3, 2, 'Class C');
-
--- =========================
--- SAMPLE ATTENDANCE
--- =========================
-INSERT INTO attendance (student_id, subject_id, date, status) VALUES
-(1, 1, '2026-03-01', 'present'),
-(1, 1, '2026-03-02', 'absent'),
-(1, 2, '2026-03-01', 'present'),
-(1, 3, '2026-03-03', 'present');
-
--- =========================
--- SAMPLE MARKS
--- =========================
-INSERT INTO marks (student_id, subject_id, exam_name, score, max_score) VALUES
-(1, 1, 'Midterm', 78, 100),
-(1, 2, 'Midterm', 85, 100),
-(1, 3, 'Midterm', 90, 100);
-
--- =========================
--- SAMPLE WORKFLOW REQUESTS
--- =========================
-INSERT INTO workflow_requests (student_id, type, status, created_at) VALUES
-(1, 'Leave Request', 'Pending', '2026-03-20'),
-(1, 'Re-evaluation', 'Approved', '2026-03-18'),
-(1, 'Bonafide Certificate', 'Pending', '2026-03-22');
-
--- =========================
--- SAMPLE REPORTS
--- =========================
-INSERT INTO reports (user_id, content, created_at) VALUES
-(1, 'Performance report generated', '2026-03-21');
-
--- =========================
--- SAMPLE NOTIFICATIONS
--- =========================
-INSERT INTO notifications (user_id, message, created_at) VALUES
-(1, 'New marks uploaded', '2026-03-22');
--- =========================
--- FEE TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS fees (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  student_id INTEGER,
-  amount INTEGER,
-  status TEXT CHECK(status IN ('paid', 'pending')),
-  payment_date TEXT,
-  FOREIGN KEY (student_id) REFERENCES users(id)
-);
--- =========================
--- GRIEVANCE TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS grievances (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER,
-  subject TEXT,
-  message TEXT,
-  status TEXT DEFAULT 'pending',
-  created_at TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
--- =========================
--- NOTICE TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS notices (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT,
-  message TEXT,
-  created_at TEXT
-);
--- =========================
--- PLACEMENT TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS placements (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  company TEXT,
-  role TEXT,
-  package INTEGER,
-  deadline TEXT
-);
--- FEES
-INSERT INTO fees (student_id, amount, status, payment_date) VALUES
-(1, 50000, 'paid', '2026-03-01');
-
--- GRIEVANCES
-INSERT INTO grievances (user_id, subject, message, status, created_at) VALUES
-(1, 'Attendance Issue', 'Attendance not updated', 'pending', '2026-03-20');
-
--- NOTICES
-INSERT INTO notices (title, message, created_at) VALUES
-('Holiday', 'College closed tomorrow', '2026-03-22');
-
--- PLACEMENTS
-INSERT INTO placements (company, role, package, deadline) VALUES
-('TCS', 'Software Engineer', 700000, '2026-04-10');
-
--- ========================
--- department TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS departments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL
-);
--- =========================
--- courses TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS courses (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  code TEXT,
+  roll_no TEXT UNIQUE,
+  employee_id TEXT UNIQUE,
   department_id INTEGER,
-  teacher_id INTEGER,
+  phone TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'archived')),
+  password_reset_required INTEGER NOT NULL DEFAULT 0,
+  last_login_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (department_id) REFERENCES departments(id)
+);
+
+CREATE TABLE student_profiles (
+  user_id INTEGER PRIMARY KEY,
+  program TEXT NOT NULL,
+  batch TEXT NOT NULL,
+  semester INTEGER NOT NULL,
+  section TEXT NOT NULL,
+  academic_year TEXT NOT NULL,
+  cgpa REAL NOT NULL,
+  total_credits INTEGER NOT NULL,
+  earned_credits INTEGER NOT NULL,
+  attendance_threshold INTEGER NOT NULL DEFAULT 75,
+  advisor_name TEXT,
+  hostel_name TEXT,
+  scholarship_status TEXT,
+  rank_position INTEGER,
+  date_of_birth TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE teacher_profiles (
+  user_id INTEGER PRIMARY KEY,
+  designation TEXT NOT NULL,
+  specialization TEXT NOT NULL,
+  qualification TEXT NOT NULL,
+  experience_years INTEGER NOT NULL,
+  office_room TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE admin_profiles (
+  user_id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,
+  super_admin INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE courses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  department_id INTEGER NOT NULL,
+  semester INTEGER NOT NULL,
+  section TEXT NOT NULL,
+  credits INTEGER NOT NULL,
+  teacher_id INTEGER NOT NULL,
+  capacity INTEGER NOT NULL DEFAULT 60,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'review', 'archived')),
   FOREIGN KEY (department_id) REFERENCES departments(id),
   FOREIGN KEY (teacher_id) REFERENCES users(id)
 );
--- =========================
--- TIME TABLE SLOTS 
--- =========================
-CREATE TABLE IF NOT EXISTS timetable_slots (
+
+CREATE TABLE course_enrollments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  course_id INTEGER,
-  day TEXT,
-  time TEXT,
-  room TEXT,
-  FOREIGN KEY (course_id) REFERENCES courses(id)
+  course_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'enrolled' CHECK (status IN ('enrolled', 'dropped')),
+  UNIQUE (course_id, student_id),
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 );
--- =========================
--- Assignment TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS assignments (
+
+CREATE TABLE timetable_slots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  course_id INTEGER,
+  course_id INTEGER NOT NULL,
+  day_of_week TEXT NOT NULL,
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  room TEXT NOT NULL,
+  slot_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'updated', 'cancelled')),
+  note TEXT,
+  updated_at TEXT NOT NULL,
+  updated_by INTEGER,
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  FOREIGN KEY (updated_by) REFERENCES users(id)
+);
+
+CREATE TABLE attendance_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER NOT NULL,
+  teacher_id INTEGER NOT NULL,
+  timetable_slot_id INTEGER,
+  session_date TEXT NOT NULL,
+  delivered_count INTEGER NOT NULL DEFAULT 1,
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('completed', 'cancelled')),
+  note TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  FOREIGN KEY (teacher_id) REFERENCES users(id),
+  FOREIGN KEY (timetable_slot_id) REFERENCES timetable_slots(id)
+);
+
+CREATE TABLE attendance_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'late', 'medical_leave')),
+  remark TEXT,
+  UNIQUE (session_id, student_id),
+  FOREIGN KEY (session_id) REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE semester_performance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id INTEGER NOT NULL,
+  semester INTEGER NOT NULL,
+  academic_year TEXT NOT NULL,
+  sgpa REAL NOT NULL,
+  cgpa REAL NOT NULL,
+  credits_registered INTEGER NOT NULL,
+  credits_earned INTEGER NOT NULL,
+  rank_position INTEGER NOT NULL,
+  UNIQUE (student_id, semester),
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE course_results (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id INTEGER NOT NULL,
+  course_id INTEGER NOT NULL,
+  semester INTEGER NOT NULL,
+  academic_year TEXT NOT NULL,
+  internal_score REAL NOT NULL,
+  external_score REAL NOT NULL,
+  total_score REAL NOT NULL,
+  grade_letter TEXT NOT NULL,
+  grade_point REAL NOT NULL,
+  credits INTEGER NOT NULL,
+  published_on TEXT NOT NULL,
+  UNIQUE (student_id, course_id, semester),
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+);
+
+CREATE TABLE assessments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER NOT NULL,
+  teacher_id INTEGER NOT NULL,
+  exam_type TEXT NOT NULL,
+  max_score INTEGER NOT NULL,
+  semester INTEGER NOT NULL,
+  published_on TEXT NOT NULL,
+  UNIQUE (course_id, exam_type, semester),
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  FOREIGN KEY (teacher_id) REFERENCES users(id)
+);
+
+CREATE TABLE marks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  assessment_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  score REAL NOT NULL,
+  remark TEXT,
+  updated_at TEXT NOT NULL,
+  UNIQUE (assessment_id, student_id),
+  FOREIGN KEY (assessment_id) REFERENCES assessments(id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER NOT NULL,
+  teacher_id INTEGER NOT NULL,
   title TEXT NOT NULL,
-  description TEXT,
-  due_date TEXT,
-  FOREIGN KEY (course_id) REFERENCES courses(id)
+  description TEXT NOT NULL,
+  due_date TEXT NOT NULL,
+  max_score INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  FOREIGN KEY (teacher_id) REFERENCES users(id)
 );
--- =========================
--- ASSIGNMENT SUBMISSIONS TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS assignment_submissions (
+
+CREATE TABLE assignment_submissions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  assignment_id INTEGER,
-  student_id INTEGER,
-  file TEXT,
+  assignment_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'submitted', 'graded', 'late')),
+  score REAL,
+  file_name TEXT,
   submitted_at TEXT,
-  FOREIGN KEY (assignment_id) REFERENCES assignments(id),
-  FOREIGN KEY (student_id) REFERENCES users(id)
+  feedback TEXT,
+  UNIQUE (assignment_id, student_id),
+  FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 );
--- =========================
--- STUDY MATERIALS TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS study_materials (
+
+CREATE TABLE notices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  course_id INTEGER,
-  title TEXT,
-  file TEXT,
-  FOREIGN KEY (course_id) REFERENCES courses(id)
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  audience TEXT NOT NULL,
+  priority TEXT NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
+  published_by INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  FOREIGN KEY (published_by) REFERENCES users(id)
 );
--- =========================
--- Library Books TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS library_books (
+
+CREATE TABLE grievances (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT,
-  author TEXT,
-  available INTEGER DEFAULT 1
+  submitted_by INTEGER NOT NULL,
+  category TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  message TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_review', 'resolved', 'closed')),
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
+  assigned_to INTEGER,
+  resolution_note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (submitted_by) REFERENCES users(id),
+  FOREIGN KEY (assigned_to) REFERENCES users(id)
 );
--- =========================
--- LIBRARY LOAN TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS library_loans (
+
+CREATE TABLE scholarship_awards (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  book_id INTEGER,
-  student_id INTEGER,
-  issue_date TEXT,
-  return_date TEXT,
+  student_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  amount REAL NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('approved', 'credited', 'pending')),
+  disbursed_at TEXT,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE fee_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id INTEGER NOT NULL,
+  fee_head TEXT NOT NULL,
+  term_label TEXT NOT NULL,
+  amount REAL NOT NULL,
+  due_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'overdue', 'scholarship_adjusted')),
+  paid_at TEXT,
+  transaction_ref TEXT,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE library_books (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  isbn TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  author TEXT NOT NULL,
+  category TEXT NOT NULL,
+  total_copies INTEGER NOT NULL,
+  available_copies INTEGER NOT NULL
+);
+
+CREATE TABLE library_loans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  issue_date TEXT NOT NULL,
+  due_date TEXT NOT NULL,
+  returned_at TEXT,
+  status TEXT NOT NULL DEFAULT 'issued' CHECK (status IN ('issued', 'overdue', 'returned', 'renewal_requested')),
+  fine_amount REAL NOT NULL DEFAULT 0,
   FOREIGN KEY (book_id) REFERENCES library_books(id),
-  FOREIGN KEY (student_id) REFERENCES users(id)
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 );
--- =========================
--- PLACEMENT APPLICATIONS TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS placement_applications (
+
+CREATE TABLE placements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  placement_id INTEGER,
-  student_id INTEGER,
-  status TEXT DEFAULT 'applied',
-  FOREIGN KEY (placement_id) REFERENCES placements(id),
-  FOREIGN KEY (student_id) REFERENCES users(id)
+  company TEXT NOT NULL,
+  role TEXT NOT NULL,
+  package_lpa REAL NOT NULL,
+  deadline TEXT NOT NULL,
+  drive_date TEXT NOT NULL,
+  min_cgpa REAL NOT NULL,
+  location TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'ongoing', 'closed'))
 );
--- =========================
--- SYSTEM SETTINGS TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS system_settings (
+
+CREATE TABLE placement_applications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  key TEXT,
-  value TEXT
+  placement_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'applied' CHECK (status IN ('applied', 'shortlisted', 'rejected', 'offered')),
+  applied_at TEXT NOT NULL,
+  note TEXT,
+  UNIQUE (placement_id, student_id),
+  FOREIGN KEY (placement_id) REFERENCES placements(id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 );
--- =========================
--- activity feed TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS activity_feed (
+
+CREATE TABLE workflow_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id INTEGER NOT NULL,
+  request_type TEXT NOT NULL CHECK (request_type IN ('medical_leave', 'absence')),
+  from_date TEXT NOT NULL,
+  to_date TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  attachment_name TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  reviewed_by INTEGER,
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewed_by) REFERENCES users(id)
+);
+
+CREATE TABLE notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  category TEXT NOT NULL,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  action_link TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE system_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by INTEGER,
+  FOREIGN KEY (updated_by) REFERENCES users(id)
+);
+
+CREATE TABLE audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER,
-  activity TEXT,
-  created_at TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
--- =========================
--- AUDIT LOGS TABLE
--- =========================
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER,
+  actor_name TEXT NOT NULL,
   action TEXT NOT NULL,
-  created_at TEXT,
+  entity_type TEXT NOT NULL,
+  entity_id INTEGER,
+  details TEXT,
+  created_at TEXT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
--- ================================
--- 🏢 DEPARTMENTS
--- ================================
-INSERT INTO departments (name) VALUES
-('Computer Science'),
-('Mechanical');
 
--- ================================
--- 📘 COURSES
--- ================================
-INSERT INTO courses (name, code, department_id, teacher_id) VALUES
-('B.Tech CSE','CSE101',1,2);
-
--- ================================
--- 📅 TIMETABLE
--- ================================
-INSERT INTO timetable_slots (course_id, day, time, room) VALUES
-(1,'Monday','10:00 AM','Room 101'),
-(1,'Tuesday','11:00 AM','Room 102');
-
--- ================================
--- 📝 ASSIGNMENTS
--- ================================
-INSERT INTO assignments (course_id, title, description, due_date) VALUES
-(1,'Math Assignment','Solve problems','2026-04-10');
-
--- ================================
--- 📤 ASSIGNMENT SUBMISSIONS
--- ================================
-INSERT INTO assignment_submissions (assignment_id, student_id, file, submitted_at) VALUES
-(1,1,'assignment1.pdf','2026-04-02');
-
--- ================================
--- 📚 STUDY MATERIAL
--- ================================
-INSERT INTO study_materials (course_id, title, file) VALUES
-(1,'Lecture Notes','notes.pdf');
-
--- ================================
--- 📚 LIBRARY BOOKS
--- ================================
-INSERT INTO library_books (title, author, available) VALUES
-('Data Structures','Cormen',1);
-
--- ================================
--- 📚 LIBRARY LOANS
--- ================================
-INSERT INTO library_loans (book_id, student_id, issue_date, return_date) VALUES
-(1,1,'2026-04-01','2026-04-10');
-
--- ================================
--- 📊 ACTIVITY FEED
--- ================================
-INSERT INTO activity_feed (user_id, activity, created_at) VALUES
-(1,'Logged in','2026-04-01'),
-(2,'Uploaded assignment','2026-04-02');
-
--- ================================
--- 🧾 AUDIT LOGS
--- ================================
-INSERT INTO audit_logs (user_id, action, created_at) VALUES
-(3,'Created course','2026-04-01');
-
--- ================================
--- ⚙️ SYSTEM SETTINGS
--- ================================
-INSERT INTO system_settings (key, value) VALUES
-('site_name','EduWorkflow'),
-('semester','2');
+CREATE INDEX idx_users_role_status ON users(role, status);
+CREATE INDEX idx_courses_teacher_section ON courses(teacher_id, section);
+CREATE INDEX idx_enrollments_student ON course_enrollments(student_id);
+CREATE INDEX idx_attendance_sessions_course_date ON attendance_sessions(course_id, session_date);
+CREATE INDEX idx_attendance_records_student ON attendance_records(student_id);
+CREATE INDEX idx_course_results_student_semester ON course_results(student_id, semester);
+CREATE INDEX idx_marks_assessment_student ON marks(assessment_id, student_id);
+CREATE INDEX idx_assignments_course_due ON assignments(course_id, due_date);
+CREATE INDEX idx_notices_active_audience ON notices(active, audience, created_at);
+CREATE INDEX idx_grievances_status ON grievances(status, priority);
+CREATE INDEX idx_fee_items_student_status ON fee_items(student_id, status);
+CREATE INDEX idx_requests_student_status ON workflow_requests(student_id, status);
+CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
