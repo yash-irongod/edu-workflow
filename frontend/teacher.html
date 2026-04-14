@@ -3,514 +3,68 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Teacher Dashboard | EduTrack MLOps</title>
+  <title>Teacher Dashboard | EduWorkflow</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
-<body>
-<div class="app-shell">
-
-  <!-- ── SIDEBAR ─────────────────────────── -->
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <div class="logo">Edu<span>Track</span></div>
-      <span class="role-badge">Teacher</span>
-    </div>
-
-    <nav class="sidebar-nav">
-      <div class="nav-section-label">Main</div>
-      <a class="nav-item active" data-section="dashboard"><span class="nav-icon">📊</span> Dashboard</a>
-      <a class="nav-item" data-section="attendance"><span class="nav-icon">📋</span> Attendance</a>
-      <a class="nav-item" data-section="marks"><span class="nav-icon">🏆</span> Enter Marks</a>
-      <a class="nav-item" data-section="assignments"><span class="nav-icon">📝</span> Assignments</a>
-      <a class="nav-item" data-section="students"><span class="nav-icon">👥</span> Students</a>
-      <a class="nav-item" data-section="timetable"><span class="nav-icon">🕐</span> Timetable</a>
-      <a class="nav-item" data-section="announcements"><span class="nav-icon">📣</span> Announcements</a>
-      <a class="nav-item" data-section="reports"><span class="nav-icon">📈</span> Reports</a>
-      <a class="nav-item" data-section="profile"><span class="nav-icon">👤</span> Profile</a>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="user-chip">
-        <div class="user-avatar" id="avatarInitials">DM</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebarTeacherName">Dr. Mehra</div>
-          <div class="user-role">Faculty — CSE AI/ML</div>
+<body data-role="teacher">
+  <div class="dashboard-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-lockup">
+        <div class="brand-mark">EW</div>
+        <div>
+          <div class="brand-name">EduWorkflow</div>
+          <div class="brand-subtitle">Faculty Portal</div>
         </div>
       </div>
-      <button class="logout-btn" id="logoutBtn">⎋ Sign Out</button>
-    </div>
-  </aside>
-
-  <!-- ── MAIN CONTENT ──────────────────────── -->
-  <main class="main-content">
-
-    <!-- ═══════════ DASHBOARD ═══════════ -->
-    <section id="sec-dashboard">
-      <div class="page-header">
-        <div class="page-header-text">
-          <h1>Welcome, <span id="teacherName">Dr. Mehra</span> 🎓</h1>
-          <p>Faculty Dashboard &nbsp;·&nbsp; B.Tech CSE (AI/ML) &nbsp;·&nbsp; Session 2025–26</p>
-        </div>
-        <div class="header-meta" id="liveClock">—</div>
-      </div>
-
-      <div class="stats-grid">
-        <div class="stat-card accent">
-          <div class="sc-icon">🏫</div>
-          <div class="sc-value">5</div>
-          <div class="sc-label">Total Classes</div>
-        </div>
-        <div class="stat-card">
-          <div class="sc-icon">👥</div>
-          <div class="sc-value">120</div>
-          <div class="sc-label">Total Students</div>
-        </div>
-        <div class="stat-card">
-          <div class="sc-icon">⏳</div>
-          <div class="sc-value" id="pendingTasksCard">3</div>
-          <div class="sc-label">Pending Tasks</div>
-        </div>
-        <div class="stat-card">
-          <div class="sc-icon">📅</div>
-          <div class="sc-value">4</div>
-          <div class="sc-label">Today's Classes</div>
-        </div>
-        <div class="stat-card">
-          <div class="sc-icon">📋</div>
-          <div class="sc-value" id="avgAttendanceCard">87%</div>
-          <div class="sc-label">Avg. Class Attendance</div>
-        </div>
-        <div class="stat-card">
-          <div class="sc-icon">📝</div>
-          <div class="sc-value" id="assignmentsDueCard">2</div>
-          <div class="sc-label">Assignments Due Soon</div>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <span class="section-title">📈 Class Average Performance — Deep Learning (Sem VI)</span>
-          <span class="section-badge">Live · Internal Assessment</span>
-        </div>
-        <div class="chart-legend" id="perfLegend">
-          <span><span class="legend-dot" style="background:#6c63ff"></span>Internal Exam 1</span>
-          <span><span class="legend-dot" style="background:#00d4aa"></span>Internal Exam 2</span>
-          <span><span class="legend-dot" style="background:#ff6b6b"></span>Mid-Term</span>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="mainChart"></canvas>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ ATTENDANCE ═══════════ -->
-    <section id="sec-attendance" class="hidden">
-      <div class="page-header">
-        <div class="page-header-text">
-          <h1>📋 Mark Attendance</h1>
-          <p>Submit and view attendance records by class and date</p>
-        </div>
-      </div>
-      <div class="section">
-        <div class="tab-row">
-          <button class="tab-btn active" data-tab="mark" data-target="attMarkPanel">Mark Attendance</button>
-          <button class="tab-btn" data-tab="history" data-target="attHistoryPanel">Attendance History</button>
-        </div>
-
-        <!-- Mark Tab -->
-        <div id="attMarkPanel">
-          <form id="attendanceForm">
-            <div class="form-row" style="margin-bottom:18px">
-              <div class="form-group" style="margin:0">
-                <label for="classSelect">Select Class</label>
-                <select id="classSelect" required>
-                  <option value="">— Select Class —</option>
-                  <option>B.Tech CSE-Core (Sec A)</option>
-                  <option>B.Tech CSE-Core (Sec B)</option>
-                  <option>B.Tech CSE AI-ML (Sec A)</option>
-                  <option>B.Tech CSE AI-ML (Sec B)</option>
-                  <option>M.Tech AI/DS (Sec A)</option>
-                </select>
-              </div>
-              <div class="form-group" style="margin:0">
-                <label for="attendanceDate">Date</label>
-                <input type="date" id="attendanceDate" required />
-              </div>
-            </div>
-            <div style="overflow-x:auto">
-              <table class="data-table attendance-table">
-                <thead>
-                  <tr><th>#</th><th>Roll No.</th><th>Student</th><th>Present</th><th>Absent</th><th>Late</th></tr>
-                </thead>
-                <tbody id="attTableBody"></tbody>
-              </table>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary">✔ Submit Attendance</button>
-              <button type="reset" class="btn btn-outline">✕ Reset</button>
-              <span id="attSubmitStatus" class="status-msg"></span>
-            </div>
-          </form>
-        </div>
-
-        <!-- History Tab -->
-        <div id="attHistoryPanel" class="hidden">
-          <div class="filter-row">
-            <div class="form-group" style="margin:0;flex:1;min-width:160px">
-              <label for="histDateFilter">Filter by Date</label>
-              <input type="date" id="histDateFilter" />
-            </div>
-            <div class="form-group" style="margin:0;flex:1;min-width:160px">
-              <label for="histClassFilter">Filter by Class</label>
-              <select id="histClassFilter">
-                <option value="">All Classes</option>
-                <option>B.Tech CSE-Core (Sec A)</option>
-                <option>B.Tech CSE-Core (Sec B)</option>
-                <option>B.Tech CSE AI-ML (Sec A)</option>
-                <option>B.Tech CSE AI-ML (Sec B)</option>
-                <option>M.Tech AI/DS (Sec A)</option>
-              </select>
-            </div>
-          </div>
-          <div id="historyList">
-            <p class="empty-msg">No attendance records yet. Submit attendance to see history.</p>
+      <nav class="sidebar-nav">
+        <button class="nav-link active" data-target="overviewSection">Home</button>
+        <button class="nav-link" data-target="operationsSection">Class Operations</button>
+        <button class="nav-link" data-target="rosterSection">Roster</button>
+        <button class="nav-link" data-target="timetableSection">Timetable</button>
+        <button class="nav-link" data-target="announcementsSection">Notices</button>
+        <button class="nav-link" data-target="profileSection">Profile</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="identity-card">
+          <div class="avatar" id="sidebarAvatar">TR</div>
+          <div>
+            <div class="identity-name" id="sidebarName">Faculty</div>
+            <div class="identity-meta" id="sidebarMeta">Department</div>
           </div>
         </div>
+        <button class="ghost-btn full-width" id="logoutBtn">Sign Out</button>
       </div>
-    </section>
+    </aside>
 
-    <!-- ═══════════ MARKS ═══════════ -->
-    <section id="sec-marks" class="hidden">
-      <div class="page-header">
-        <div class="page-header-text">
-          <h1>🏆 Enter Marks</h1>
-          <p>Save marks to student profiles — updates performance chart in real-time</p>
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">Faculty operations</div>
+          <h1 class="page-title" id="pageTitle">Faculty Portal</h1>
+          <p class="page-subtitle" id="pageSubtitle">Loading teaching records...</p>
         </div>
-      </div>
-      <div class="section">
-        <form id="marksForm">
-          <div class="form-row-3" style="margin-bottom:18px">
-            <div class="form-group" style="margin:0">
-              <label for="marksSubject">Subject</label>
-              <select id="marksSubject" required>
-                <option value="">— Subject —</option>
-                <option>Deep Learning</option>
-                <option>MLOps Practicals</option>
-                <option>NLP &amp; Transformers</option>
-                <option>Cloud Computing</option>
-                <option>Reinforcement Learning</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label for="marksExam">Exam Type</label>
-              <select id="marksExam" required>
-                <option value="">— Type —</option>
-                <option>Internal Exam 1</option>
-                <option>Internal Exam 2</option>
-                <option>Mid-Term</option>
-                <option>Lab Test</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label for="marksMax">Max Marks</label>
-              <input type="number" id="marksMax" min="1" max="100" placeholder="e.g. 50" required />
-            </div>
-          </div>
-          <div style="overflow-x:auto">
-            <table class="data-table">
-              <thead>
-                <tr><th>#</th><th>Roll No.</th><th>Student</th><th>Marks Obtained</th><th>Remarks</th></tr>
-              </thead>
-              <tbody id="marksTableBody"></tbody>
-            </table>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">💾 Save Marks</button>
-            <button type="reset" class="btn btn-outline">✕ Reset</button>
-            <span id="marksStatus" class="status-msg"></span>
-          </div>
-        </form>
-      </div>
-      <div class="section">
-        <div class="section-header">
-          <span class="section-title">📊 Saved Marks Records</span>
-          <span class="section-badge" id="marksRecordsBadge">0 records</span>
+        <div class="topbar-meta">
+          <button class="icon-btn mobile-only" id="menuToggleBtn" title="Open menu">Menu</button>
+          <div class="clock-chip" id="liveClock">--</div>
+          <button class="icon-btn" id="refreshBtn" title="Refresh data">Refresh</button>
         </div>
-        <div id="marksSavedList"><p class="empty-msg">No marks saved yet.</p></div>
-      </div>
-    </section>
+      </header>
 
-    <!-- ═══════════ ASSIGNMENTS ═══════════ -->
-    <section id="sec-assignments" class="hidden">
-      <div class="page-header">
-        <div class="page-header-text">
-          <h1>📝 Assignments</h1>
-          <p>Create assignments and track student submissions in real-time</p>
-        </div>
-      </div>
-      <div class="section">
-        <div class="section-header"><span class="section-title">Create New Assignment</span></div>
-        <form id="assignmentForm" style="max-width:580px">
-          <div class="form-group">
-            <label for="asgTitle">Title</label>
-            <input type="text" id="asgTitle" placeholder="Assignment title" required />
-          </div>
-          <div class="form-group">
-            <label for="asgSubject">Subject</label>
-            <select id="asgSubject" required>
-              <option value="">— Subject —</option>
-              <option>Deep Learning</option>
-              <option>MLOps Practicals</option>
-              <option>NLP &amp; Transformers</option>
-              <option>Cloud Computing</option>
-              <option>Reinforcement Learning</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="asgDesc">Description</label>
-            <textarea id="asgDesc" placeholder="Describe the assignment…"></textarea>
-          </div>
-          <div class="form-row">
-            <div class="form-group" style="margin:0">
-              <label for="asgDue">Due Date</label>
-              <input type="date" id="asgDue" required />
-            </div>
-            <div class="form-group" style="margin:0">
-              <label for="asgMax">Max Marks</label>
-              <input type="number" id="asgMax" min="1" placeholder="e.g. 20" required />
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-accent">➕ Create Assignment</button>
-            <span id="asgStatus" class="status-msg"></span>
-          </div>
-        </form>
-      </div>
-      <div class="section">
-        <div class="section-header">
-          <span class="section-title">Existing Assignments</span>
-          <span class="section-badge" id="asgCountBadge">0 active</span>
-        </div>
-        <div style="overflow-x:auto">
-          <table class="data-table">
-            <thead>
-              <tr><th>Title</th><th>Subject</th><th>Max Marks</th><th>Due Date</th><th>Submissions</th><th>Actions</th></tr>
-            </thead>
-            <tbody id="assignmentsTableBody"></tbody>
-          </table>
-        </div>
-        <p id="asgEmpty" class="empty-msg">No assignments yet. Create one above.</p>
-      </div>
-    </section>
-
-    <!-- ═══════════ STUDENTS ═══════════ -->
-    <section id="sec-students" class="hidden">
-      <div class="page-header">
-        <div class="page-header-text">
-          <h1>👥 Student Management</h1>
-          <p>5 students in this cohort</p>
-        </div>
-      </div>
-      <div class="section">
-        <div class="filter-row" style="margin-bottom:16px">
-          <input type="text" id="studentSearch" placeholder="🔍  Search by name or roll no…" class="search-input" />
-          <select class="filter-select">
-            <option>All Classes</option>
-            <option>B.Tech CSE AI-ML (Sec A)</option>
-            <option>B.Tech CSE AI-ML (Sec B)</option>
-            <option>B.Tech CSE-Core (Sec A)</option>
-          </select>
-        </div>
-        <div style="overflow-x:auto">
-          <table class="data-table" id="studentTable">
-            <thead>
-              <tr><th>Roll No.</th><th>Name</th><th>Class</th><th>CGPA</th><th>Attendance</th><th>Status</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              <tr data-name="rahul sharma">
-                <td>2024CS0401</td><td>Rahul Sharma</td><td>B.Tech CSE AI-ML (A)</td><td>7.9</td><td>78%</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td><button class="btn btn-sm btn-outline" data-action="view-student" data-name="Rahul Sharma">View</button></td>
-              </tr>
-              <tr data-name="anjali verma">
-                <td>2024CS0402</td><td>Anjali Verma</td><td>B.Tech CSE AI-ML (A)</td><td>8.5</td><td>85%</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td><button class="btn btn-sm btn-outline" data-action="view-student" data-name="Anjali Verma">View</button></td>
-              </tr>
-              <tr data-name="arjun kapoor">
-                <td>2024CS0403</td><td>Arjun Kapoor</td><td>B.Tech CSE AI-ML (B)</td><td>6.8</td>
-                <td><strong class="danger-text">68%</strong></td>
-                <td><span class="badge badge-warning">At Risk</span></td>
-                <td class="action-cell">
-                  <button class="btn btn-sm btn-outline" data-action="view-student" data-name="Arjun Kapoor">View</button>
-                  <button class="btn btn-sm btn-danger" data-action="alert-student" data-name="Arjun Kapoor">Alert</button>
-                </td>
-              </tr>
-              <tr data-name="sneha reddy">
-                <td>2024CS0404</td><td>Sneha Reddy</td><td>B.Tech CSE-Core (A)</td><td>9.1</td><td>92%</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td><button class="btn btn-sm btn-outline" data-action="view-student" data-name="Sneha Reddy">View</button></td>
-              </tr>
-              <tr data-name="priya sharma">
-                <td>2024CS0472</td><td>Priya Sharma</td><td>B.Tech CSE AI-ML (B)</td><td>8.74</td><td>82%</td>
-                <td><span class="badge badge-success">Active</span></td>
-                <td><button class="btn btn-sm btn-outline" data-action="view-student" data-name="Priya Sharma">View</button></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ TIMETABLE ═══════════ -->
-    <section id="sec-timetable" class="hidden">
-      <div class="page-header">
-        <div class="page-header-text">
-          <h1>🕐 Timetable</h1>
-          <p>Week of 27 Mar 2026 · 5 subjects</p>
-        </div>
-      </div>
-      <div class="section">
-        <div style="overflow-x:auto">
-          <table class="data-table">
-            <thead><tr><th>Day</th><th>Subject</th><th>Class</th><th>Time</th><th>Room</th><th>Type</th></tr></thead>
-            <tbody>
-              <tr><td>Monday</td><td>Deep Learning</td><td>CSE AI-ML (A)</td><td>10:00–11:00 AM</td><td>A-204</td><td><span class="badge badge-info">Lecture</span></td></tr>
-              <tr><td>Monday</td><td>MLOps Practicals</td><td>CSE AI-ML (B)</td><td>02:00–04:00 PM</td><td>Lab-3</td><td><span class="badge badge-warning">Practical</span></td></tr>
-              <tr><td>Tuesday</td><td>Deep Learning</td><td>CSE AI-ML (B)</td><td>09:00–10:00 AM</td><td>B-101</td><td><span class="badge badge-info">Lecture</span></td></tr>
-              <tr><td>Wednesday</td><td>Research Supervision</td><td>M.Tech AI/DS</td><td>11:00 AM–01:00 PM</td><td>Research Lab</td><td><span class="badge badge-neutral">Supervision</span></td></tr>
-              <tr><td>Thursday</td><td>Deep Learning</td><td>CSE AI-ML (A)</td><td>08:30–09:30 AM</td><td>A-204</td><td><span class="badge badge-info">Lecture</span></td></tr>
-              <tr><td>Thursday</td><td>MLOps Practicals</td><td>CSE AI-ML (A)</td><td>09:45–10:45 AM</td><td>Lab-3</td><td><span class="badge badge-warning">Practical</span></td></tr>
-              <tr><td>Friday</td><td>Department Meeting</td><td>Faculty</td><td>03:00–04:00 PM</td><td>Conf. Room</td><td><span class="badge badge-neutral">Meeting</span></td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ ANNOUNCEMENTS ═══════════ -->
-    <section id="sec-announcements" class="hidden">
-      <div class="page-header">
-        <div class="page-header-text">
-          <h1>📣 Announcements</h1>
-          <p>Post and manage class announcements</p>
-        </div>
-      </div>
-      <div class="section">
-        <form id="announcementForm" style="max-width:560px;margin-bottom:24px">
-          <div class="form-group">
-            <label for="annTitle">Title</label>
-            <input type="text" id="annTitle" placeholder="Announcement title" required />
-          </div>
-          <div class="form-group">
-            <label for="annAudience">Target Audience</label>
-            <select id="annAudience">
-              <option>All Students</option>
-              <option>B.Tech CSE AI-ML (Sec A)</option>
-              <option>B.Tech CSE AI-ML (Sec B)</option>
-              <option>All Classes</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="annMsg">Message</label>
-            <textarea id="annMsg" rows="4" placeholder="Write your announcement here…" required></textarea>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-accent">📣 Post Announcement</button>
-            <button type="reset" class="btn btn-outline">✕ Clear</button>
-          </div>
-        </form>
-        <div class="section-header">
-          <span class="section-title" style="font-size:14px">Recent Announcements</span>
-        </div>
-        <div id="announcementsList"></div>
-      </div>
-    </section>
-
-    <!-- ═══════════ REPORTS ═══════════ -->
-    <section id="sec-reports" class="hidden">
-      <div class="page-header">
-        <div class="page-header-text">
-          <h1>📈 Reports</h1>
-          <p>Generate and export academic reports</p>
-        </div>
-      </div>
-      <div class="section">
-        <div class="btn-group">
-          <button class="btn btn-outline" data-action="report" data-report="attendance">📋 Attendance Report</button>
-          <button class="btn btn-outline" data-action="report" data-report="marks">🏆 Marks Report</button>
-          <button class="btn btn-outline" data-action="report" data-report="assignments">📝 Assignment Summary</button>
-          <button class="btn btn-outline" data-action="report" data-report="atrisk">⚠ At-Risk Students</button>
-        </div>
-        <div style="margin-top:24px">
-          <div class="section-header"><span class="section-title" style="font-size:14px">Live Summary</span></div>
-          <div id="reportSummary" class="summary-grid" style="margin-top:12px"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════ PROFILE ═══════════ -->
-    <section id="sec-profile" class="hidden">
-      <div class="page-header">
-        <div class="page-header-text"><h1>👤 Faculty Profile</h1></div>
-        <button class="btn btn-outline btn-sm" data-action="edit-profile">✏ Edit Profile</button>
-      </div>
-      <div class="section">
-        <div style="overflow-x:auto">
-          <table class="data-table">
-            <tbody>
-              <tr><td class="label-cell">Full Name</td><td><strong id="profileName">Dr. Rajiv Mehra</strong></td></tr>
-              <tr><td class="label-cell">Employee ID</td><td>FAC-2018-045</td></tr>
-              <tr><td class="label-cell">Designation</td><td>Associate Professor</td></tr>
-              <tr><td class="label-cell">Department</td><td>Computer Science &amp; Engineering</td></tr>
-              <tr><td class="label-cell">Specialisation</td><td>Deep Learning, MLOps, Computer Vision</td></tr>
-              <tr><td class="label-cell">Email</td><td>r.mehra@university.ac.in</td></tr>
-              <tr><td class="label-cell">Phone</td><td>+91 98800 12345</td></tr>
-              <tr><td class="label-cell">Qualification</td><td>Ph.D. — IIT Delhi (2016)</td></tr>
-              <tr><td class="label-cell">Experience</td><td>8 Years Teaching &amp; Research</td></tr>
-              <tr><td class="label-cell">Subjects</td><td>Deep Learning · MLOps Practicals · Research Methodology</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-  </main>
-</div>
-
-<!-- ── EDIT ATTENDANCE MODAL ─── -->
-<div class="modal-overlay" id="editModal" role="dialog" aria-modal="true" aria-label="Edit Attendance">
-  <div class="modal-box">
-    <div class="modal-title">✏ Edit Attendance Record</div>
-    <div id="editModalContent"></div>
-    <div class="form-actions">
-      <button class="btn btn-primary" id="saveEditBtn">Save Changes</button>
-      <button class="btn btn-outline" id="cancelEditBtn">Cancel</button>
-    </div>
+      <section id="overviewSection" class="view-section"></section>
+      <section id="operationsSection" class="view-section hidden"></section>
+      <section id="rosterSection" class="view-section hidden"></section>
+      <section id="timetableSection" class="view-section hidden"></section>
+      <section id="announcementsSection" class="view-section hidden"></section>
+      <section id="profileSection" class="view-section hidden"></section>
+    </main>
   </div>
-</div>
+  <div class="sidebar-scrim" id="sidebarScrim"></div>
 
-<!-- ── SUBMISSION MODAL ─── -->
-<div class="modal-overlay" id="subModal" role="dialog" aria-modal="true" aria-label="Update Submissions">
-  <div class="modal-box">
-    <div class="modal-title">📬 Simulate Student Submissions</div>
-    <div id="subModalContent"></div>
-    <div class="form-actions">
-      <button class="btn btn-accent" id="saveSubBtn">Update Submissions</button>
-      <button class="btn btn-outline" id="cancelSubBtn">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── TOAST ─── -->
-<div id="toastContainer"></div>
-
-<!-- Scripts: api.js first (provides service layer), then app.js (consumes it) -->
-<script src="api.js"></script>
-<script src="login.js"></script>
-<script src="app.js"></script>
+  <div id="toastContainer" class="toast-stack"></div>
+  <script src="api.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

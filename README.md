@@ -1,225 +1,121 @@
-# 🚀 Edu-Workflow
+# EduWorkflow
 
-### Automated Workflow & Performance Monitoring Platform for Academic Institutions
+EduWorkflow is a role-based academic workflow and student services platform for institutions. It includes student, teacher, and admin portals backed by Flask and SQLite, with academic records, attendance, marks, timetable data, notices, requests, finance items, and grievances all stored in the same application database.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/status-active-green?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/backend-Flask-black?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/frontend-JS%20%7C%20CSS-orange?style=for-the-badge" />
-</p>
+## Current Highlights
 
----
+- student, teacher, and admin portals render from stored application data
+- student attendance supports semester, subject, month, date, and day-wise views
+- result semester selection is independent from attendance filters
+- teacher actions update attendance, marks, assignments, notices, and timetable records
+- admin actions manage users, course ownership, timetable slots, grievances, notices, and settings
+- tests cover login, role boundaries, maintenance mode, teacher mark propagation, admin user lifecycle actions, and student attendance contract behavior
 
-## ✨ What is Edu-Workflow?
+## Product Scope
 
-Edu-Workflow is a **full-stack academic management platform** designed to automate institutional workflows and provide real-time performance monitoring.
+### Student portal
 
-Instead of juggling multiple disconnected systems, it brings everything — **students, teachers, and administrators** — into one structured and efficient ecosystem.
+- CGPA, rank, attendance, credits, results, timetable, assignments, notices, placements, fees, scholarships, grievances, and profile are loaded from the application database
+- attendance supports semester, subject, month, date, and day-wise filters
+- medical leave and absence requests are stored as real workflow requests
+- fee payments update ledger rows
+- placement applications and library renewals create real records
 
-> Built with a focus on **real-world usability, system design, and clean UI/UX** for institutions.
+### Teacher workspace
 
----
+- class performance chart is computed from stored marks
+- attendance submission writes session and per-student records
+- marks publication updates assessment storage and student result totals
+- assignment creation seeds submission rows for enrolled students
+- student contact actions create notifications
+- timetable updates notify enrolled students
+- faculty notices are stored centrally
 
-## 🧠 Problem It Solves
+### Admin console
 
-Academic institutions commonly suffer from:
+- user management supports create, suspend, restore, archive, and password reset
+- course assignment and review status update real course records
+- timetable creation and edits propagate to student and teacher views
+- grievances can be resolved with recorded notes
+- notice publishing and unpublishing are real actions
+- maintenance mode blocks student and teacher access while preserving admin access
+- audit logs track critical actions
 
-- Fragmented systems across departments  
-- Manual approval workflows  
-- Delayed communication  
-- Lack of real-time performance visibility  
+## Tech Stack
 
-These issues slow down operations and reduce transparency.
+- Frontend: HTML, CSS, vanilla JavaScript, Chart.js
+- Backend: Flask, Flask-CORS
+- Database: SQLite
+- Tests: Python `unittest`
 
-**Edu-Workflow solves this by:**
-- Centralizing workflows  
-- Automating processes  
-- Providing real-time dashboards  
-- Enabling role-based control  
+## Repository Structure
 
----
+```text
+backend/
+  app.py
+  auth.py
+  db_init.sql
+  middleware.py
+  services.py
+frontend/
+  index.html
+  student.html
+  teacher.html
+  admin.html
+  api.js
+  app.js
+  login.js
+  css/
+tests/
+db_init.py
+API_CONTRACT.md
+```
 
-## 🔥 Core Features
+## Setup
 
-### 🔐 Role-Based System
-- Separate dashboards for:
-  - Students  
-  - Teachers  
-  - Admins  
-- Controlled access permissions  
-- Session-based UI protection  
+1. Create or activate a Python environment.
+2. Install dependencies:
 
----
+```bash
+pip install flask flask-cors
+```
 
-### 📊 Smart Dashboards
-- Real-time personalized dashboards  
-- Integrated charts (Chart.js)  
-- Academic performance tracking  
-- Live system clock  
+3. Initialize the database:
 
----
+```bash
+python db_init.py
+```
 
-### 🧑‍🎓 Student Capabilities
-- View attendance and marks  
-- Apply for placements  
-- Pay fees (dynamic simulation)  
-- Submit grievances  
-- Track assignments  
+4. Start the backend:
 
----
+```bash
+python backend/app.py
+```
 
-### 👨‍🏫 Teacher Tools
-- Upload assignments  
-- Manage submissions  
-- Record attendance  
-- Enter marks  
-- Post announcements  
+5. Open the frontend:
 
----
+- `frontend/index.html`
 
-### 🛠️ Admin Control Panel
-- Manage users & roles  
-- Publish notices  
-- Monitor institutional data  
-- Access analytics  
+## Demo Credentials
 
----
+- Student: `s@x.com` / `123`
+- Teacher: `t@x.com` / `123`
+- Admin: `a@x.com` / `123`
 
-### ⚡ Advanced UI / UX
-- Animated login (canvas-based background)  
-- Toast notification system  
-- Dynamic modals (no page reloads)  
-- Avatar generation  
-- Smooth transitions and responsive layout  
+## Test Command
 
----
+```bash
+python -m unittest discover -s tests -v
+```
 
-### 🔄 Workflow Automation
-- Assignment lifecycle handling  
-- Fee payment updates  
-- Placement application flow  
-- Instant form feedback  
+## Notes
 
----
+- The API contract is documented in [API_CONTRACT.md](/C:/Users/Lenovo/Desktop/Edu-Workflow-Beta/API_CONTRACT.md).
+- `db_init.py` recreates the SQLite database from the schema in `backend/db_init.sql`.
+- Maintenance mode is enforced at login and on authenticated student/teacher routes.
 
-### 🔎 Search & Filtering
-- Student filtering (teacher dashboard)  
-- Admin filtering by role  
-- Dynamic table updates  
+## Remaining Gaps
 
----
-
-## 🧱 Tech Stack
-
-### Frontend
-- HTML5  
-- CSS3 (custom styling, responsive design)  
-- JavaScript (Vanilla JS)  
-- Chart.js  
-
-### Backend
-- Flask (Python)  
-- REST API  
-- JSON-based communication  
-
----
-
-## 🏗️ Project Architecture
-
-~~~
-Frontend (UI)
-│
-├── Login System
-├── Role-Based Dashboards
-├── Dynamic Components (modals, tables, charts)
-│
-Backend (Flask API)
-│
-├── Authentication
-├── Role Handling
-├── Data Processing
-│
-Storage
-│
-├── LocalStorage (session)
-├── API-driven data
-~~~
-
----
-
-## 📸 Screenshots
-
-![Login UI](assets/login.png)
-![Students Dashboard](assets/students_dashboard.png)
-![Teachers Dashboard](assets/teachers_dashboard.png)
-![Admin Dashboard](assets/admin_dashboard.png)
-
----
-
-## ⚙️ Setup & Run
-
-### Backend
-~~~
-cd backend
-pip install -r requirements.txt
-python app.py
-~~~
-
-### Frontend
-Open:
-
-~~~
-index.html
-~~~
-
-Make sure backend runs on:
-
-~~~
-http://127.0.0.1:5000
-~~~
-
----
-
-## 🚀 Roadmap
-
-- JWT authentication (replace localStorage)  
-- Database integration (PostgreSQL / MongoDB)  
-- Notification system (email + in-app)  
-- Multi-institution scalability  
-- AI-based analytics insights  
-- Dark mode  
-- Mobile optimization  
-
----
-
-## 💡 Why This Project Stands Out
-
-- Clean, structured architecture  
-- Real institutional workflow modeling  
-- Fully interactive dashboards  
-- Not template-based — built from scratch  
-- Focused on real usability, not just UI  
-
----
-
-## 👥 Team — Smashers
-
-- **Yash Kaushik** — Team Leader  
-- Shivam Kumar Gupta  
-- Aditya Yadav  
-- Aaditya Kumar  
-- Yuvraj Singh Soni  
-- Pranav Dhiman  
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
----
-
-## 🧩 Final Note
-
-Edu-Workflow is not just a prototype — it’s a practical system built to solve real academic workflow challenges using modern web technologies.
+- file upload storage is represented as attachment or file-name metadata only
+- there is no JWT/session server yet; the current frontend uses header-based role and user id state after login
+- exports and document downloads are not yet implemented as generated files
