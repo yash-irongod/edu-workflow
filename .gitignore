@@ -1,18 +1,81 @@
-# Python
+# ===== Python =====
 __pycache__/
-*.pyc
-.venv/
-.env
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.tox/
+.nox/
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+*.whl
 
-# Node / Frontend
+# Virtual envs / env files
+.venv/
+venv/
+ENV/
+env/
+.env
+.env.*
+!.env.example
+
+# ===== Node / Frontend =====
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+.yarn/
 dist/
 build/
+.next/
+out/
+.svelte-kit/
+.vite/
+.cache/
+.parcel-cache/
+.eslintcache
 
-# OS Files
+# ===== Logs =====
+logs/
+*.log
+
+# ===== Runtime / temp =====
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+
+# ===== OS files =====
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# IDEs
+# ===== IDEs =====
 .vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
 .idea/
+*.iml
+
+# ===== Cursor =====
+.cursor/
+
+# ===== Local DB / secrets (common) =====
+*.sqlite
+*.sqlite3
+*.db
+*.pem
+*.key

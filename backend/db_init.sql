@@ -7,6 +7,9 @@ DROP TABLE IF EXISTS placement_applications;
 DROP TABLE IF EXISTS placements;
 DROP TABLE IF EXISTS library_loans;
 DROP TABLE IF EXISTS library_books;
+DROP TABLE IF EXISTS study_materials;
+DROP TABLE IF EXISTS exam_schedule;
+DROP TABLE IF EXISTS teacher_student_actions;
 DROP TABLE IF EXISTS fee_items;
 DROP TABLE IF EXISTS scholarship_awards;
 DROP TABLE IF EXISTS grievances;
@@ -227,8 +230,11 @@ CREATE TABLE assignments (
   description TEXT NOT NULL,
   due_date TEXT NOT NULL,
   max_score INTEGER NOT NULL,
+  attachment_name TEXT,
+  attachment_path TEXT,
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
   created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   FOREIGN KEY (teacher_id) REFERENCES users(id)
 );
@@ -239,7 +245,9 @@ CREATE TABLE assignment_submissions (
   student_id INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'submitted', 'graded', 'late')),
   score REAL,
-  file_name TEXT,
+  submission_text TEXT,
+  attachment_name TEXT,
+  attachment_path TEXT,
   submitted_at TEXT,
   feedback TEXT,
   UNIQUE (assignment_id, student_id),
@@ -255,8 +263,11 @@ CREATE TABLE notices (
   priority TEXT NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
   published_by INTEGER NOT NULL,
   created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by INTEGER,
   active INTEGER NOT NULL DEFAULT 1,
-  FOREIGN KEY (published_by) REFERENCES users(id)
+  FOREIGN KEY (published_by) REFERENCES users(id),
+  FOREIGN KEY (updated_by) REFERENCES users(id)
 );
 
 CREATE TABLE grievances (
@@ -265,6 +276,8 @@ CREATE TABLE grievances (
   category TEXT NOT NULL,
   subject TEXT NOT NULL,
   message TEXT NOT NULL,
+  attachment_name TEXT,
+  attachment_path TEXT,
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_review', 'resolved', 'closed')),
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
   assigned_to INTEGER,
@@ -321,6 +334,34 @@ CREATE TABLE library_loans (
   FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE study_materials (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  material_type TEXT NOT NULL CHECK (material_type IN ('pdf', 'video', 'link', 'notes')),
+  attachment_name TEXT,
+  attachment_path TEXT,
+  external_url TEXT,
+  uploaded_by INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id)
+);
+
+CREATE TABLE exam_schedule (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER NOT NULL,
+  exam_type TEXT NOT NULL,
+  exam_date TEXT NOT NULL,
+  start_time TEXT NOT NULL,
+  venue TEXT NOT NULL,
+  duration_minutes INTEGER NOT NULL,
+  published_by INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  FOREIGN KEY (published_by) REFERENCES users(id)
+);
+
 CREATE TABLE placements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   company TEXT NOT NULL,
@@ -340,6 +381,8 @@ CREATE TABLE placement_applications (
   status TEXT NOT NULL DEFAULT 'applied' CHECK (status IN ('applied', 'shortlisted', 'rejected', 'offered')),
   applied_at TEXT NOT NULL,
   note TEXT,
+  resume_link TEXT,
+  cover_letter TEXT,
   UNIQUE (placement_id, student_id),
   FOREIGN KEY (placement_id) REFERENCES placements(id) ON DELETE CASCADE,
   FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
@@ -353,12 +396,25 @@ CREATE TABLE workflow_requests (
   to_date TEXT NOT NULL,
   reason TEXT NOT NULL,
   attachment_name TEXT,
+  attachment_path TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   reviewed_by INTEGER,
   reviewed_at TEXT,
+  review_note TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (reviewed_by) REFERENCES users(id)
+);
+
+CREATE TABLE teacher_student_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  teacher_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  action_type TEXT NOT NULL CHECK (action_type IN ('contact', 'alert', 'view')),
+  note TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE notifications (

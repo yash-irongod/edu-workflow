@@ -1,74 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Dashboard | EduWorkflow</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Admin Panel | EduWorkflow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/style.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body data-role="admin">
-  <div class="dashboard-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand-lockup">
-        <div class="brand-mark">EW</div>
-        <div>
-          <div class="brand-name">EduWorkflow</div>
-          <div class="brand-subtitle">Administration</div>
+<div class="dashboard-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🎓</div>
+      <div><div class="brand-name">EduWorkflow</div><div class="brand-tagline">Admin Panel</div></div>
+    </div>
+
+    <div class="sidebar-section-label">Overview</div>
+    <nav class="sidebar-nav">
+      <button class="nav-link active" data-target="overviewSection"><span class="nav-icon">📊</span>Dashboard</button>
+      <button class="nav-link" data-target="activitySection"><span class="nav-icon">📡</span>Activity Log</button>
+    </nav>
+
+    <div class="sidebar-section-label">Management</div>
+    <nav class="sidebar-nav">
+      <button class="nav-link" data-target="usersSection"><span class="nav-icon">👥</span>User Directory</button>
+      <button class="nav-link" data-target="deptsSection"><span class="nav-icon">🏛</span>Departments</button>
+      <button class="nav-link" data-target="coursesSection"><span class="nav-icon">📚</span>Courses</button>
+      <button class="nav-link" data-target="timetableSection"><span class="nav-icon">🗓</span>Timetable Config</button>
+    </nav>
+
+    <div class="sidebar-section-label">Academic</div>
+    <nav class="sidebar-nav">
+      <button class="nav-link" data-target="grievancesSection"><span class="nav-icon">⚠️</span>Grievances <span class="nav-badge hidden" id="grvBadge">0</span></button>
+      <button class="nav-link" data-target="noticesSection"><span class="nav-icon">📢</span>Notice Board</button>
+      <button class="nav-link" data-target="reportsSection"><span class="nav-icon">📈</span>Reports</button>
+    </nav>
+
+    <div class="sidebar-section-label">System</div>
+    <nav class="sidebar-nav">
+      <button class="nav-link" data-target="settingsSection"><span class="nav-icon">⚙️</span>Settings</button>
+      <button class="nav-link" data-target="profileSection"><span class="nav-icon">👤</span>Profile</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="identity-pill">
+        <div class="identity-avatar" id="sidebarAvatar">AD</div>
+        <div style="min-width:0">
+          <div class="identity-name" id="sidebarName">Loading…</div>
+          <div class="identity-sub" id="sidebarMeta">Administrator</div>
         </div>
       </div>
-      <nav class="sidebar-nav">
-        <button class="nav-link active" data-target="overviewSection">Dashboard</button>
-        <button class="nav-link" data-target="usersSection">Users</button>
-        <button class="nav-link" data-target="coursesSection">Courses</button>
-        <button class="nav-link" data-target="timetableSection">Timetable</button>
-        <button class="nav-link" data-target="grievancesSection">Grievances</button>
-        <button class="nav-link" data-target="noticesSection">Notices</button>
-        <button class="nav-link" data-target="settingsSection">Settings</button>
-        <button class="nav-link" data-target="profileSection">Profile</button>
-      </nav>
-      <div class="sidebar-footer">
-        <div class="identity-card">
-          <div class="avatar" id="sidebarAvatar">AD</div>
-          <div>
-            <div class="identity-name" id="sidebarName">Admin</div>
-            <div class="identity-meta" id="sidebarMeta">System Control</div>
-          </div>
-        </div>
-        <button class="ghost-btn full-width" id="logoutBtn">Sign Out</button>
+      <button class="logout-btn" id="logoutBtn"><span>🚪</span> Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="workspace">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-eyebrow">Administration</div>
+        <div class="topbar-title" id="pageTitle">Admin Panel</div>
+        <div class="topbar-section" id="sectionLabel" aria-live="polite">Dashboard</div>
       </div>
-    </aside>
-
-    <main class="workspace">
-      <header class="topbar">
-        <div>
-          <div class="eyebrow">Institution administration</div>
-          <h1 class="page-title" id="pageTitle">Admin Dashboard</h1>
-          <p class="page-subtitle" id="pageSubtitle">Loading operational controls...</p>
+      <div class="topbar-right">
+        <button class="topbar-btn menu-btn" id="menuBtn" aria-label="Menu">☰</button>
+        <div class="clock-chip">🕐 <span id="liveClock">--:--</span></div>
+        <div class="notif-dropdown-wrap">
+          <button class="topbar-btn" id="notifBtn" aria-label="Notifications">
+            🔔<span class="notif-badge hidden" id="notifCount">0</span>
+          </button>
+          <div class="notif-panel hidden" id="notifPanel"></div>
         </div>
-        <div class="topbar-meta">
-          <button class="icon-btn mobile-only" id="menuToggleBtn" title="Open menu">Menu</button>
-          <div class="clock-chip" id="liveClock">--</div>
-          <button class="icon-btn" id="refreshBtn" title="Refresh data">Refresh</button>
-        </div>
-      </header>
+        <button class="topbar-btn" id="refreshBtn" aria-label="Refresh" title="Refresh">↻</button>
+      </div>
+    </header>
 
-      <section id="overviewSection" class="view-section"></section>
-      <section id="usersSection" class="view-section hidden"></section>
-      <section id="coursesSection" class="view-section hidden"></section>
-      <section id="timetableSection" class="view-section hidden"></section>
+    <div class="page-body">
+      <section id="overviewSection"   class="view-section"></section>
+      <section id="activitySection"   class="view-section hidden"></section>
+      <section id="usersSection"      class="view-section hidden"></section>
+      <section id="deptsSection"      class="view-section hidden"></section>
+      <section id="coursesSection"    class="view-section hidden"></section>
+      <section id="timetableSection"  class="view-section hidden"></section>
       <section id="grievancesSection" class="view-section hidden"></section>
-      <section id="noticesSection" class="view-section hidden"></section>
-      <section id="settingsSection" class="view-section hidden"></section>
-      <section id="profileSection" class="view-section hidden"></section>
-    </main>
-  </div>
-  <div class="sidebar-scrim" id="sidebarScrim"></div>
+      <section id="noticesSection"    class="view-section hidden"></section>
+      <section id="reportsSection"    class="view-section hidden"></section>
+      <section id="settingsSection"   class="view-section hidden"></section>
+      <section id="profileSection"    class="view-section hidden"></section>
+    </div>
+  </main>
+</div>
 
-  <div id="toastContainer" class="toast-stack"></div>
-  <script src="api.js"></script>
-  <script src="app.js"></script>
+<div class="sidebar-scrim" id="sidebarScrim"></div>
+<div class="toast-stack" id="toastStack"></div>
+<div id="modalHost"></div>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
