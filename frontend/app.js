@@ -192,7 +192,7 @@ const state = {
   filters: JSON.parse(JSON.stringify(DEFAULT_FILTERS[document.body.dataset.role] || {})),
 };
 
-const STORE_KEY = `edutrack-v8:${state.role}`;
+const STORE_KEY = `eduWorkflow-v8:${state.role}`;
 
 function persistState() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify({ activeSection: state.ui.activeSection, filters: state.filters })); }
