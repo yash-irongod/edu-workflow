@@ -45,6 +45,21 @@ def grade_for(total_score):
     return "P", 5.0
 
 
+def grade_for_200(total_score):
+    """Grade function for 200-point scale (internal 100 + external 100)."""
+    if total_score >= 180:
+        return "A+", 10.0
+    if total_score >= 160:
+        return "A", 9.0
+    if total_score >= 140:
+        return "B+", 8.0
+    if total_score >= 120:
+        return "B", 7.0
+    if total_score >= 100:
+        return "C", 6.0
+    return "P", 5.0
+
+
 def build_student_seed():
     students = []
     for index in range(30):
@@ -268,30 +283,45 @@ def enroll_students(cursor, course_map):
 
 
 def create_timetable(cursor, course_map, users):
+    # Each course gets 2 slots per week spread across different days
+    # 6 courses × 2 slots = 12 slots per section
     slot_templates = [
-        ("Thursday", "08:30", "09:30", "A-204", "Lecture"),
-        ("Thursday", "09:45", "10:45", "Lab-3", "Practical"),
-        ("Thursday", "11:00", "12:00", "B-101", "Lecture"),
-        ("Thursday", "14:00", "15:00", "C-210", "Lecture"),
-        ("Thursday", "15:15", "16:15", "C-212", "Lecture"),
-        ("Friday", "10:00", "11:00", "Open Elective Hall", "Seminar"),
+        # (day, start, end, room, type)  — for course index 0..5, slot 1
+        ("Monday",    "08:30", "09:30", "A-204",             "Lecture"),
+        ("Monday",    "10:00", "11:00", "Lab-3",             "Practical"),
+        ("Tuesday",   "09:00", "10:00", "B-101",             "Lecture"),
+        ("Tuesday",   "11:15", "12:15", "C-210",             "Lecture"),
+        ("Wednesday", "08:30", "09:30", "C-212",             "Lecture"),
+        ("Wednesday", "14:00", "15:00", "Open Elective Hall","Seminar"),
+        # slot 2 (repeated on a different day)
+        ("Thursday",  "08:30", "09:30", "A-204",             "Lecture"),
+        ("Thursday",  "09:45", "10:45", "Lab-3",             "Practical"),
+        ("Thursday",  "11:00", "12:00", "B-101",             "Lecture"),
+        ("Friday",    "09:00", "10:00", "C-210",             "Lecture"),
+        ("Friday",    "10:15", "11:15", "C-212",             "Lecture"),
+        ("Friday",    "14:00", "15:00", "Open Elective Hall","Seminar"),
     ]
     grouped = defaultdict(list)
     for course in course_map.values():
         grouped[course["section"]].append(course)
     for section, courses in grouped.items():
         for index, course in enumerate(courses):
-            day_of_week, start_time, end_time, room, slot_type = slot_templates[index]
-            status = "updated" if course["name"] == "Cloud Computing" and section == "B" else "scheduled"
-            note = "Room updated after faculty request" if status == "updated" else ""
-            cursor.execute(
-                """
-                INSERT INTO timetable_slots (
-                  course_id, day_of_week, start_time, end_time, room, slot_type, status, note, updated_at, updated_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (course["id"], day_of_week, start_time, end_time, room, slot_type, status, note, timestamp(-1, 17, 10), users["a@x.com"]),
-            )
+            # Insert two slots per course (first half and second half of templates)
+            for slot_offset in [0, 6]:
+                tmpl_idx = index + slot_offset
+                if tmpl_idx >= len(slot_templates):
+                    continue
+                day_of_week, start_time, end_time, room, slot_type = slot_templates[tmpl_idx]
+                status = "updated" if course["name"] == "Cloud Computing" and section == "B" else "scheduled"
+                note = "Room updated after faculty request" if status == "updated" else ""
+                cursor.execute(
+                    """
+                    INSERT INTO timetable_slots (
+                      course_id, day_of_week, start_time, end_time, room, slot_type, status, note, updated_at, updated_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (course["id"], day_of_week, start_time, end_time, room, slot_type, status, note, timestamp(-1, 17, 10), users["a@x.com"]),
+                )
 
 
 def create_attendance(cursor, course_map):
@@ -303,12 +333,23 @@ def create_attendance(cursor, course_map):
         ORDER BY users.id
         """
     ).fetchall()
-    slots = {row["course_id"]: row for row in cursor.execute("SELECT id, course_id, start_time, end_time FROM timetable_slots").fetchall()}
+    # Build list of all slots per course (now multiple per course)
+    all_slots = cursor.execute("SELECT id, course_id, start_time, end_time FROM timetable_slots").fetchall()
+    slots_by_course = {}
+    for row in all_slots:
+        if row["course_id"] not in slots_by_course:
+            slots_by_course[row["course_id"]] = []
+        slots_by_course[row["course_id"]].append(row)
+
     for course in course_map.values():
         course_students = [student for student in students if student["section"] == course["section"]]
-        for offset in range(7):
+        course_slots = slots_by_course.get(course["id"], [])
+        if not course_slots:
+            continue
+        # Use first slot as the representative slot for attendance sessions
+        slot = course_slots[0]
+        for offset in range(10):
             session_date = date(2026, 4, 14) - timedelta(days=offset * 2 + (0 if course["section"] == "B" else 1))
-            slot = slots[course["id"]]
             cursor.execute(
                 """
                 INSERT INTO attendance_sessions (
@@ -340,6 +381,8 @@ def create_results_and_marks(cursor, course_map):
         ORDER BY users.id
         """
     ).fetchall()
+
+    # ── Semester 6 assessments + marks (live courses) ─────────────
     for course in course_map.values():
         assessments = {}
         for exam_type, max_score in [("Internal Exam 1", 50), ("Internal Exam 2", 50), ("Mid-Term", 100)]:
@@ -373,8 +416,80 @@ def create_results_and_marks(cursor, course_map):
                 (student["id"], course["id"], internal_one + internal_two, external, total, grade_letter, grade_point, course["credits"], iso(-1)),
             )
 
+    # ── Semesters 1–5: synthetic historical course results ────────
+    # These are historical "virtual" courses not in course_map.
+    # We create course_results rows directly for each student.
+    historical_courses = [
+        # (sem, code, name, credits, dept_offset)
+        (1, "CS101", "Introduction to Programming",     4),
+        (1, "CS102", "Mathematics for Computing",       4),
+        (1, "CS103", "Digital Logic Design",             3),
+        (1, "CS104", "English Communication",            2),
+        (1, "CS105", "Engineering Physics",              3),
+        (2, "CS201", "Data Structures",                  4),
+        (2, "CS202", "Object Oriented Programming",      4),
+        (2, "CS203", "Discrete Mathematics",             3),
+        (2, "CS204", "Computer Organization",            3),
+        (2, "CS205", "Environmental Science",            2),
+        (3, "CS301", "Algorithms and Complexity",        4),
+        (3, "CS302", "Database Management Systems",      4),
+        (3, "CS303", "Operating Systems",                4),
+        (3, "CS304", "Computer Networks",                3),
+        (3, "CS305", "Probability and Statistics",       3),
+        (4, "CS401", "Artificial Intelligence",          4),
+        (4, "CS402", "Machine Learning Fundamentals",    4),
+        (4, "CS403", "Software Engineering",             3),
+        (4, "CS404", "Web Technologies",                 3),
+        (4, "CS405", "Theory of Computation",            3),
+        (5, "CS501", "Deep Learning Foundations",        4),
+        (5, "CS502", "Computer Vision",                  4),
+        (5, "CS503", "Natural Language Processing",      4),
+        (5, "CS504", "Cloud Architectures",              3),
+        (5, "CS505", "Research Methodology",             2),
+    ]
+
+    # Academic year map per semester
+    ay_map = {1: "2022-2023", 2: "2022-2023", 3: "2023-2024", 4: "2023-2024", 5: "2024-2025"}
+
+    # Get the first teacher id available (for historical course teacher reference)
+    teacher_id = cursor.execute("SELECT id FROM users WHERE role='teacher' LIMIT 1").fetchone()["id"]
+    dept_id = cursor.execute("SELECT id FROM departments WHERE code='CSE' LIMIT 1").fetchone()["id"]
+
+    # Create historical course rows (archived, so they don't appear in live roster)
+    hist_course_map = {}  # (sem, code) -> course_id
+    for (sem, code, name, credits) in historical_courses:
+        cursor.execute(
+            """INSERT INTO courses (code, name, department_id, semester, section, credits, teacher_id, capacity, status)
+               VALUES (?, ?, ?, ?, 'ALL', ?, ?, 60, 'archived')""",
+            (code, name, dept_id, sem, credits, teacher_id),
+        )
+        hist_course_map[(sem, code)] = cursor.lastrowid
+
+    # Insert course_results for each student × each historical course
+    for index, student in enumerate(students):
+        for (sem, code, name, credits) in historical_courses:
+            course_id = hist_course_map[(sem, code)]
+            ay = ay_map[sem]
+            # Deterministic score variation per student+course
+            seed = index * 7 + len(code) + sem * 3
+            internal = 60 + (seed % 28)        # 60–87 out of 100
+            external = 55 + ((seed * 2) % 35)  # 55–89 out of 100
+            total = internal + external
+            grade_letter, grade_point = grade_for_200(total)
+            cursor.execute(
+                """
+                INSERT INTO course_results (
+                  student_id, course_id, semester, academic_year, internal_score, external_score,
+                  total_score, grade_letter, grade_point, credits, published_on
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (student["id"], course_id, sem, ay, internal, external, total, grade_letter, grade_point, credits, iso(-30 * (6 - sem))),
+            )
+
 
 def create_assignments(cursor, course_map):
+    submission_columns = [row[1] for row in cursor.execute("PRAGMA table_info(assignment_submissions)").fetchall()]
+    attachment_col = "file_name" if "file_name" in submission_columns else "attachment_name" if "attachment_name" in submission_columns else None
     specs = [
         ("Deep Learning", "Lab Report: CNN Architecture", "Submit notebook and evaluation notes.", iso(2), 15),
         ("MLOps Practicals", "Mini Project Deployment Plan", "Document CI/CD, monitoring, and rollback steps.", iso(5), 20),
@@ -388,10 +503,10 @@ def create_assignments(cursor, course_map):
             cursor.execute(
                 """
                 INSERT INTO assignments (
-                  course_id, teacher_id, title, description, due_date, max_score, status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, 'open', ?)
+                  course_id, teacher_id, title, description, due_date, max_score, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
-                (course["id"], course["teacher_id"], title, description, due_date, max_score, iso(-5)),
+                (course["id"], course["teacher_id"], title, description, due_date, max_score, iso(-5), iso(-5)),
             )
             assignment_id = cursor.lastrowid
             for position, row in enumerate(cursor.execute("SELECT student_id FROM course_enrollments WHERE course_id = ?", (course["id"],)).fetchall()):
@@ -399,17 +514,17 @@ def create_assignments(cursor, course_map):
                 if position % 9 == 0:
                     status = "graded"
                 cursor.execute(
-                    """
+                    f"""
                     INSERT INTO assignment_submissions (
-                      assignment_id, student_id, status, score, file_name, submitted_at, feedback
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                      assignment_id, student_id, status, score{f", {attachment_col}" if attachment_col else ""}, submitted_at, feedback
+                    ) VALUES (?, ?, ?, ?{", ?" if attachment_col else ""}, ?, ?)
                     """,
                     (
                         assignment_id,
                         row["student_id"],
                         status,
                         max_score - (position % 5) if status == "graded" else None,
-                        f"{title.lower().replace(' ', '_')}.pdf" if status != "pending" else None,
+                        *( [f"{title.lower().replace(' ', '_')}.pdf" if status != "pending" else None] if attachment_col else [] ),
                         iso(-2) if status != "pending" else None,
                         "Please improve references" if status == "graded" and position % 3 == 0 else "Good submission" if status == "graded" else None,
                     ),
@@ -419,12 +534,12 @@ def create_assignments(cursor, course_map):
 def create_notices_grievances_finance(cursor, users):
     execute_many(
         cursor,
-        "INSERT INTO notices (title, message, audience, priority, published_by, created_at, active) VALUES (?, ?, ?, ?, ?, ?, 1)",
+        "INSERT INTO notices (title, message, audience, priority, published_by, created_at, updated_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
         [
-            ("End-Semester Exam Schedule Released", "Exam schedule for Semester VI is now live on the portal.", "all", "high", users["a@x.com"], iso(-3)),
-            ("Mini Project Milestone Review", "Project review slots open for all final-year AI/ML sections.", "student", "high", users["t@x.com"], iso(-2)),
-            ("Library Fine Amnesty Week", "Submit overdue books this week for fine relief.", "all", "medium", users["a@x.com"], iso(-6)),
-            ("Campus Placement Drive", "TCS, Infosys, and Google recruiter interactions start next week.", "student", "high", users["a@x.com"], iso(-5)),
+            ("End-Semester Exam Schedule Released", "Exam schedule for Semester VI is now live on the portal.", "all", "high", users["a@x.com"], iso(-3), iso(-3)),
+            ("Mini Project Milestone Review", "Project review slots open for all final-year AI/ML sections.", "student", "high", users["t@x.com"], iso(-2), iso(-2)),
+            ("Library Fine Amnesty Week", "Submit overdue books this week for fine relief.", "all", "medium", users["a@x.com"], iso(-6), iso(-6)),
+            ("Campus Placement Drive", "TCS, Infosys, and Google recruiter interactions start next week.", "student", "high", users["a@x.com"], iso(-5), iso(-5)),
         ],
     )
     students = cursor.execute("SELECT id FROM users WHERE role = 'student' ORDER BY id").fetchall()
@@ -495,7 +610,59 @@ def create_library_and_placements(cursor):
     )
     priya_id = cursor.execute("SELECT id FROM users WHERE email = 's@x.com'").fetchone()["id"]
     amazon_id = cursor.execute("SELECT id FROM placements WHERE company = 'Amazon'").fetchone()["id"]
-    cursor.execute("INSERT INTO placement_applications (placement_id, student_id, status, applied_at, note) VALUES (?, ?, 'shortlisted', ?, ?)", (amazon_id, priya_id, iso(-4), "Round 2 interview on 2026-04-20"))
+    cursor.execute(
+        "INSERT INTO placement_applications (placement_id, student_id, status, applied_at, note, resume_link, cover_letter) VALUES (?, ?, 'shortlisted', ?, ?, ?, ?)",
+        (amazon_id, priya_id, iso(-4), "Round 2 interview on 2026-04-20", "https://drive.google.com/resume-priya-sharma", "Strong interest in distributed ML systems and applied research."),
+    )
+
+    # ── Study Materials ────────────────────────────────────────────
+    teacher_id = cursor.execute("SELECT id FROM users WHERE email = 't@x.com'").fetchone()["id"]
+    courses = {row["code"]: row["id"] for row in cursor.execute("SELECT id, code FROM courses WHERE section != 'ALL'").fetchall()}
+    study_data = [
+        (courses.get("CS601"), "Deep Learning — Lecture Slides (Week 1–6)", "pdf",      "dl_slides_w1_w6.pdf",   None,                    None,                                       teacher_id, iso(-10)),
+        (courses.get("CS601"), "CNN Architecture Reference Sheet",           "notes",    "cnn_ref.pdf",           None,                    None,                                       teacher_id, iso(-8)),
+        (courses.get("CS601"), "Andrew Ng Deep Learning Specialization",     "link",     None,                    None,                    "https://www.coursera.org/specializations/deep-learning", teacher_id, iso(-15)),
+        (courses.get("CS602"), "MLOps Fundamentals — Course Notes",          "notes",    "mlops_notes.pdf",       None,                    None,                                       cursor.execute("SELECT id FROM users WHERE email='ahuja@edu.in'").fetchone()["id"], iso(-7)),
+        (courses.get("CS602"), "Docker & Kubernetes Cheatsheet",              "pdf",      "k8s_docker_cheat.pdf",  None,                    None,                                       cursor.execute("SELECT id FROM users WHERE email='ahuja@edu.in'").fetchone()["id"], iso(-5)),
+        (courses.get("CS603"), "Transformer Architecture Deep Dive",          "pdf",      "transformer_arch.pdf",  None,                    None,                                       cursor.execute("SELECT id FROM users WHERE email='kapoor@edu.in'").fetchone()["id"], iso(-9)),
+        (courses.get("CS603"), "Hugging Face Transformers Crash Course",      "video",    None,                    None,                    "https://huggingface.co/learn",              cursor.execute("SELECT id FROM users WHERE email='kapoor@edu.in'").fetchone()["id"], iso(-6)),
+        (courses.get("CS605"), "RL Algorithms Summary — Q-Learning to PPO",  "pdf",      "rl_summary.pdf",        None,                    None,                                       cursor.execute("SELECT id FROM users WHERE email='bose@edu.in'").fetchone()["id"],   iso(-11)),
+        (courses.get("CS611"), "Deep Learning — Lecture Slides (Week 1–6)", "pdf",      "dl_slides_w1_w6.pdf",   None,                    None,                                       teacher_id, iso(-10)),
+        (courses.get("CS611"), "CNN Architecture Reference Sheet",           "notes",    "cnn_ref.pdf",           None,                    None,                                       teacher_id, iso(-8)),
+    ]
+    for row in study_data:
+        if row[0]:  # skip if course not found
+            cursor.execute(
+                "INSERT INTO study_materials (course_id, title, material_type, attachment_name, attachment_path, external_url, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                row,
+            )
+
+    # ── Exam Schedule ──────────────────────────────────────────────
+    admin_id = cursor.execute("SELECT id FROM users WHERE email = 'a@x.com'").fetchone()["id"]
+    exam_data = []
+    for code, exam_type, date_offset, start_time, venue, duration in [
+        ("CS601", "End-Semester Exam",  20, "09:00", "Main Hall A",  180),
+        ("CS602", "End-Semester Exam",  21, "14:00", "Lab Block 3",  150),
+        ("CS603", "End-Semester Exam",  22, "09:00", "Main Hall B",  180),
+        ("CS604", "End-Semester Exam",  23, "14:00", "Seminar Hall", 120),
+        ("CS605", "End-Semester Exam",  24, "09:00", "Main Hall A",  180),
+        ("CS606", "End-Semester Exam",  24, "14:00", "CSE Seminar",  90),
+        ("CS611", "End-Semester Exam",  20, "09:00", "Main Hall C",  180),
+        ("CS612", "End-Semester Exam",  21, "14:00", "Lab Block 4",  150),
+        ("CS613", "End-Semester Exam",  22, "09:00", "Main Hall D",  180),
+        ("CS614", "End-Semester Exam",  23, "14:00", "Open Elective", 120),
+        ("CS615", "End-Semester Exam",  24, "09:00", "Main Hall C",  180),
+        ("CS616", "End-Semester Exam",  24, "14:00", "ECE Seminar",  90),
+        ("CS601", "Internal Exam 3",    -2, "10:00", "CSE-204",      90),
+        ("CS611", "Internal Exam 3",    -2, "14:00", "CSE-204",      90),
+    ]:
+        cid = courses.get(code)
+        if cid:
+            exam_data.append((cid, exam_type, iso(date_offset), start_time, venue, duration, admin_id, iso(-3)))
+    cursor.executemany(
+        "INSERT INTO exam_schedule (course_id, exam_type, exam_date, start_time, venue, duration_minutes, published_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        exam_data,
+    )
 
 
 def create_requests_notifications_and_logs(cursor, users):

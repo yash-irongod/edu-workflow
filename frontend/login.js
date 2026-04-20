@@ -290,7 +290,7 @@ function startLoginAnimation() {
 async function doLogin() {
   const email = document.getElementById("email")?.value.trim();
   const password = document.getElementById("pwd")?.value.trim();
-  const loginButton = document.querySelector(".btn");
+  const loginButton = document.getElementById("loginBtn") || document.querySelector(".btn");
   if (!email || !password) {
     showMessage("Please enter email and password");
     return;
@@ -321,23 +321,36 @@ async function doLogin() {
 
 window.doLogin = doLogin;
 
-function bootLogin() {
+async function bootLogin() {
   if (pageFileName() !== "index.html") return;
-  if (window.Session.get().role) {
-    const role = window.Session.get().role;
-    window.location.replace(role === "student" ? "student.html" : role === "teacher" ? "teacher.html" : "admin.html");
-    return;
+  const session = window.Session.get();
+  if (session.role && session.userId) {
+    try {
+      // Only auto-redirect when the stored session is still valid on backend.
+      await window.Api.me();
+      const role = session.role;
+      window.location.replace(role === "student" ? "student.html" : role === "teacher" ? "teacher.html" : "admin.html");
+      return;
+    } catch {
+      window.Session.clear();
+    }
   }
   startLoginAnimation();
-  document.getElementById("eyeBtn")?.addEventListener("click", toggleEye);
-  document.querySelector(".btn")?.addEventListener("click", doLogin);
+  const eyeBtn = document.getElementById("eyeBtn");
+  if (eyeBtn && !eyeBtn.getAttribute("onclick")) {
+    eyeBtn.addEventListener("click", toggleEye);
+  }
+  const signInBtn = document.getElementById("loginBtn") || document.querySelector(".btn");
+  if (signInBtn && !signInBtn.getAttribute("onclick")) {
+    signInBtn.addEventListener("click", doLogin);
+  }
   document.addEventListener("keydown", (event) => {
     if (event.key === "Enter") doLogin();
   });
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", bootLogin);
+  document.addEventListener("DOMContentLoaded", () => { bootLogin(); });
 } else {
   bootLogin();
 }

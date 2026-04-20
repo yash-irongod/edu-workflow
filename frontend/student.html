@@ -1,72 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Student Dashboard | EduWorkflow</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/style.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body data-role="student">
-  <div class="dashboard-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand-lockup">
-        <div class="brand-mark">EW</div>
-        <div>
-          <div class="brand-name">EduWorkflow</div>
-          <div class="brand-subtitle">Student Portal</div>
+<div class="dashboard-shell">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🎓</div>
+      <div><div class="brand-name">EduWorkflow</div><div class="brand-tagline">Student Portal</div></div>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav">
+      <button class="nav-link active" data-target="overviewSection"><span class="nav-icon">🏠</span>Home</button>
+      <button class="nav-link" data-target="attendanceSection"><span class="nav-icon">📋</span>Attendance</button>
+      <button class="nav-link" data-target="timetableSection"><span class="nav-icon">🗓</span>Timetable</button>
+      <button class="nav-link" data-target="resultsSection"><span class="nav-icon">🏆</span>Results</button>
+      <button class="nav-link" data-target="assignmentsSection"><span class="nav-icon">📝</span>Assignments <span class="nav-badge hidden" id="assignBadge">0</span></button>
+      <button class="nav-link" data-target="campusDeskSection"><span class="nav-icon">🏫</span>Campus Desk</button>
+      <button class="nav-link" data-target="careerSection"><span class="nav-icon">💼</span>Career & Fees</button>
+      <button class="nav-link" data-target="requestsSection"><span class="nav-icon">📬</span>Requests</button>
+      <button class="nav-link" data-target="profileSection"><span class="nav-icon">👤</span>Profile</button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="identity-pill">
+        <div class="identity-avatar" id="sidebarAvatar">ST</div>
+        <div style="min-width:0">
+          <div class="identity-name" id="sidebarName">Loading…</div>
+          <div class="identity-sub" id="sidebarMeta">Student</div>
         </div>
       </div>
-      <nav class="sidebar-nav">
-        <button class="nav-link active" data-target="overviewSection">Home</button>
-        <button class="nav-link" data-target="attendanceSection">Attendance</button>
-        <button class="nav-link" data-target="timetableSection">Timetable</button>
-        <button class="nav-link" data-target="resultsSection">Results</button>
-        <button class="nav-link" data-target="servicesSection">Campus Desk</button>
-        <button class="nav-link" data-target="requestsSection">Requests</button>
-        <button class="nav-link" data-target="profileSection">Profile</button>
-      </nav>
-      <div class="sidebar-footer">
-        <div class="identity-card">
-          <div class="avatar" id="sidebarAvatar">PS</div>
-          <div>
-            <div class="identity-name" id="sidebarName">Student</div>
-            <div class="identity-meta" id="sidebarMeta">Roll</div>
-          </div>
-        </div>
-        <button class="ghost-btn full-width" id="logoutBtn">Sign Out</button>
+      <button class="logout-btn" id="logoutBtn"><span>🚪</span> Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main workspace -->
+  <main class="workspace">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-eyebrow">Student Portal</div>
+        <div class="topbar-title" id="pageTitle">Dashboard</div>
+        <div class="topbar-section" id="sectionLabel" aria-live="polite">Home</div>
       </div>
-    </aside>
-
-    <main class="workspace">
-      <header class="topbar">
-        <div>
-          <div class="eyebrow">Academic portal</div>
-          <h1 class="page-title" id="pageTitle">Student Portal</h1>
-          <p class="page-subtitle" id="pageSubtitle">Loading your academic record...</p>
+      <div class="topbar-right">
+        <button class="topbar-btn menu-btn" id="menuBtn" aria-label="Menu">☰</button>
+        <div class="clock-chip">🕐 <span id="liveClock">--:--</span></div>
+        <div class="notif-dropdown-wrap">
+          <button class="topbar-btn" id="notifBtn" aria-label="Notifications">
+            🔔<span class="notif-badge hidden" id="notifCount">0</span>
+          </button>
+          <div class="notif-panel hidden" id="notifPanel"></div>
         </div>
-        <div class="topbar-meta">
-          <button class="icon-btn mobile-only" id="menuToggleBtn" title="Open menu">Menu</button>
-          <div class="clock-chip" id="liveClock">--</div>
-          <button class="icon-btn" id="refreshBtn" title="Refresh data">Refresh</button>
-        </div>
-      </header>
+        <button class="topbar-btn" id="refreshBtn" aria-label="Refresh" title="Refresh dashboard">↻</button>
+      </div>
+    </header>
 
-      <section id="overviewSection" class="view-section"></section>
-      <section id="attendanceSection" class="view-section hidden"></section>
-      <section id="timetableSection" class="view-section hidden"></section>
-      <section id="resultsSection" class="view-section hidden"></section>
-      <section id="servicesSection" class="view-section hidden"></section>
-      <section id="requestsSection" class="view-section hidden"></section>
-      <section id="profileSection" class="view-section hidden"></section>
-    </main>
-  </div>
-  <div class="sidebar-scrim" id="sidebarScrim"></div>
+    <div class="page-body">
+      <section id="overviewSection"    class="view-section"></section>
+      <section id="attendanceSection"  class="view-section hidden"></section>
+      <section id="timetableSection"   class="view-section hidden"></section>
+      <section id="resultsSection"     class="view-section hidden"></section>
+      <section id="assignmentsSection" class="view-section hidden"></section>
+      <section id="campusDeskSection"  class="view-section hidden"></section>
+      <section id="careerSection"      class="view-section hidden"></section>
+      <section id="requestsSection"    class="view-section hidden"></section>
+      <section id="profileSection"     class="view-section hidden"></section>
+    </div>
+  </main>
+</div>
 
-  <div id="toastContainer" class="toast-stack"></div>
-  <script src="api.js"></script>
-  <script src="app.js"></script>
+<div class="sidebar-scrim" id="sidebarScrim"></div>
+<div class="toast-stack" id="toastStack"></div>
+<div id="modalHost"></div>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

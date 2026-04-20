@@ -2,6 +2,7 @@ import sqlite3
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import UTC, datetime
+import os
 
 
 def utc_now():
@@ -17,6 +18,7 @@ def connect(db_path):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    _ensure_optional_columns(conn)
     try:
         yield conn
         conn.commit()
@@ -30,6 +32,140 @@ def row_to_dict(row):
 
 def rows_to_dicts(rows):
     return [dict(row) for row in rows]
+
+
+DAY_SEQUENCE = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+STANDARD_EXAM_TYPES = ("Internal Exam 1", "Internal Exam 2", "Mid-Term", "Lab 1", "Lab 2", "Final Exam")
+
+
+def _sql_day_order(column_name="day_of_week"):
+    cases = " ".join(f"WHEN '{day}' THEN {idx}" for idx, day in enumerate(DAY_SEQUENCE, start=1))
+    return f"CASE {column_name} {cases} ELSE 99 END"
+
+
+def _apply_attendance_date_filters(clauses, params, month=None, date_filter=None, date_from=None, date_to=None):
+    if month:
+        clauses.append("substr(attendance_sessions.session_date, 1, 7) = ?")
+        params.append(month)
+    if date_filter:
+        clauses.append("attendance_sessions.session_date = ?")
+        params.append(date_filter)
+    if date_from:
+        clauses.append("date(attendance_sessions.session_date) >= date(?)")
+        params.append(date_from)
+    if date_to:
+        clauses.append("date(attendance_sessions.session_date) <= date(?)")
+        params.append(date_to)
+
+
+def _default_max_score(exam_type):
+    defaults = {
+        "Internal Exam 1": 30,
+        "Internal Exam 2": 30,
+        "Mid-Term": 40,
+        "Lab 1": 20,
+        "Lab 2": 20,
+        "Final Exam": 100,
+    }
+    return defaults.get(exam_type, 50)
+
+
+def _attendance_report_rows(conn, from_date=None, to_date=None):
+    clauses = ["1 = 1"]
+    params = []
+    if from_date:
+        clauses.append("date(attendance_sessions.session_date) >= date(?)")
+        params.append(from_date)
+    if to_date:
+        clauses.append("date(attendance_sessions.session_date) <= date(?)")
+        params.append(to_date)
+    return rows_to_dicts(
+        conn.execute(
+            f"""
+            SELECT
+              attendance_sessions.session_date,
+              courses.code AS course_code,
+              courses.name AS course_name,
+              courses.section,
+              departments.code AS department_code,
+              users.name AS teacher_name,
+              COUNT(attendance_records.id) AS total_records,
+              SUM(CASE WHEN attendance_records.status = 'present' THEN 1 ELSE 0 END) AS present_count,
+              SUM(CASE WHEN attendance_records.status = 'absent' THEN 1 ELSE 0 END) AS absent_count,
+              SUM(CASE WHEN attendance_records.status = 'late' THEN 1 ELSE 0 END) AS late_count,
+              SUM(CASE WHEN attendance_records.status = 'medical_leave' THEN 1 ELSE 0 END) AS medical_leave_count
+            FROM attendance_sessions
+            JOIN courses ON courses.id = attendance_sessions.course_id
+            JOIN departments ON departments.id = courses.department_id
+            JOIN users ON users.id = courses.teacher_id
+            LEFT JOIN attendance_records ON attendance_records.session_id = attendance_sessions.id
+            WHERE {' AND '.join(clauses)}
+            GROUP BY attendance_sessions.id
+            ORDER BY date(attendance_sessions.session_date) DESC, courses.code
+            """,
+            params,
+        ).fetchall()
+    )
+
+
+def _marks_report_rows(conn):
+    return rows_to_dicts(
+        conn.execute(
+            """
+            SELECT
+              courses.code AS course_code,
+              courses.name AS course_name,
+              courses.section,
+              departments.code AS department_code,
+              users.name AS teacher_name,
+              assessments.exam_type,
+              assessments.max_score,
+              COUNT(marks.id) AS records_count,
+              ROUND(AVG(marks.score), 2) AS average_score,
+              ROUND(MAX(marks.score), 2) AS highest_score,
+              ROUND(MIN(marks.score), 2) AS lowest_score,
+              assessments.published_on
+            FROM assessments
+            JOIN courses ON courses.id = assessments.course_id
+            JOIN departments ON departments.id = courses.department_id
+            JOIN users ON users.id = courses.teacher_id
+            LEFT JOIN marks ON marks.assessment_id = assessments.id
+            GROUP BY assessments.id
+            ORDER BY date(assessments.published_on) DESC, courses.code, assessments.exam_type
+            """
+        ).fetchall()
+    )
+
+
+def _column_exists(conn, table_name, column_name):
+    columns = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return any(row["name"] == column_name for row in columns)
+
+
+def _ensure_optional_columns(conn):
+    additions = {
+        "users": [
+            ("profile_image_data", "TEXT"),
+            ("profile_image_mime", "TEXT"),
+        ],
+        "fee_items": [
+            ("created_by", "INTEGER"),
+            ("created_at", "TEXT"),
+            ("note", "TEXT"),
+        ],
+    }
+    for table_name, columns in additions.items():
+        for column_name, column_type in columns:
+            if not _column_exists(conn, table_name, column_name):
+                conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+
+
+def _assignment_submission_name_column(conn):
+    if _column_exists(conn, "assignment_submissions", "file_name"):
+        return "file_name"
+    if _column_exists(conn, "assignment_submissions", "attachment_name"):
+        return "attachment_name"
+    return None
 
 
 def get_user_by_email(email, db_path):
@@ -62,7 +198,7 @@ def get_user_by_id(user_id, db_path):
 
 def log_action(conn, user_id, actor_name, action, entity_type, entity_id=None, details=None):
     conn.execute(
-        """
+        f"""
         INSERT INTO audit_logs (user_id, actor_name, action, entity_type, entity_id, details, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
@@ -128,6 +264,8 @@ def get_profile(user_id, db_path):
             "email": user["email"],
             "role": user["role"],
             "phone": user["phone"],
+            "profileImageData": user.get("profile_image_data") if isinstance(user, dict) else user["profile_image_data"],
+            "profileImageMime": user.get("profile_image_mime") if isinstance(user, dict) else user["profile_image_mime"],
             "status": user["status"],
             "department": {"code": user["department_code"], "name": user["department_name"]},
             "lastLoginAt": user["last_login_at"],
@@ -170,6 +308,12 @@ def update_profile(user_id, payload, db_path):
         if payload.get(field):
             updates.append(f"{field} = ?")
             values.append(payload[field].strip())
+    if "profileImageData" in payload:
+        updates.append("profile_image_data = ?")
+        values.append((payload.get("profileImageData") or "").strip() or None)
+    if "profileImageMime" in payload:
+        updates.append("profile_image_mime = ?")
+        values.append((payload.get("profileImageMime") or "").strip() or None)
     if not updates:
         return get_profile(user_id, db_path)
     values.extend([utc_now(), user_id])
@@ -195,7 +339,7 @@ def get_notifications(user_id, db_path):
     with connect(db_path) as conn:
         items = rows_to_dicts(
             conn.execute(
-                """
+                f"""
                 SELECT id, title, message, category, is_read, created_at, action_link
                 FROM notifications
                 WHERE user_id = ?
@@ -218,7 +362,7 @@ def mark_notification_read(user_id, notification_id, db_path):
     return {"message": "notification marked as read"}
 
 
-def _attendance_summary(conn, student_id, semester=None, subject=None, month=None, date_filter=None):
+def _attendance_summary(conn, student_id, semester=None, subject=None, month=None, date_filter=None, date_from=None, date_to=None):
     params = [student_id]
     where = ["course_enrollments.student_id = ?"]
     if semester:
@@ -227,12 +371,7 @@ def _attendance_summary(conn, student_id, semester=None, subject=None, month=Non
     if subject:
         where.append("courses.name = ?")
         params.append(subject)
-    if month:
-        where.append("substr(attendance_sessions.session_date, 1, 7) = ?")
-        params.append(month)
-    if date_filter:
-        where.append("attendance_sessions.session_date = ?")
-        params.append(date_filter)
+    _apply_attendance_date_filters(where, params, month=month, date_filter=date_filter, date_from=date_from, date_to=date_to)
     rows = conn.execute(
         f"""
         SELECT
@@ -306,11 +445,13 @@ def _attendance_summary(conn, student_id, semester=None, subject=None, month=Non
 def _student_timetable(conn, student_id, view="day", date_value=None):
     section = conn.execute("SELECT section FROM student_profiles WHERE user_id = ?", (student_id,)).fetchone()
     if not section:
-        return {"date": date_today(), "items": []}
+        return {"date": date_today(), "items": [], "weekly": {}}
     date_value = date_value or date_today()
     day_name = datetime.strptime(date_value, "%Y-%m-%d").strftime("%A")
+    # Filter timetable by the courses the student is actually enrolled in
+    # This prevents MBA students from seeing CSE timetables etc.
     rows = conn.execute(
-        """
+        f"""
         SELECT
           timetable_slots.id,
           timetable_slots.day_of_week,
@@ -326,31 +467,43 @@ def _student_timetable(conn, student_id, view="day", date_value=None):
         FROM timetable_slots
         JOIN courses ON courses.id = timetable_slots.course_id
         JOIN users ON users.id = courses.teacher_id
-        WHERE courses.section = ?
-        ORDER BY timetable_slots.start_time
-        """,
-        (section["section"],),
-    ).fetchall()
-    items = []
-    for row in rows:
-        if view == "day" and row["day_of_week"] != day_name:
-            continue
-        items.append(
-            {
-                "id": row["id"],
-                "day": row["day_of_week"],
-                "date": date_value,
-                "time": f"{row['start_time']} - {row['end_time']}",
-                "course": row["course_name"],
-                "code": row["course_code"],
-                "teacher": row["teacher_name"],
-                "room": row["room"],
-                "type": row["slot_type"],
-                "status": row["status"],
-                "note": row["note"],
-            }
+        WHERE courses.id IN (
+          SELECT course_id FROM course_enrollments WHERE student_id = ?
         )
-    return {"date": date_value, "view": view, "items": items}
+        ORDER BY {_sql_day_order("timetable_slots.day_of_week")}, timetable_slots.start_time
+        """,
+        (student_id,),
+    ).fetchall()
+    # Build day items (for requested date) and full weekly map
+    day_items = []
+    weekly = {}
+    for row in rows:
+        slot = {
+            "id": row["id"],
+            "day": row["day_of_week"],
+            "date": date_value,
+            "time": f"{row['start_time']} - {row['end_time']}",
+            "start_time": row["start_time"],
+            "end_time": row["end_time"],
+            "course_name": row["course_name"],
+            "subject": row["course_name"],
+            "course_code": row["course_code"],
+            "code": row["course_code"],
+            "teacher": row["teacher_name"],
+            "room": row["room"],
+            "slot_type": row["slot_type"],
+            "type": row["slot_type"],
+            "status": row["status"],
+            "note": row["note"],
+        }
+        if row["day_of_week"] == day_name:
+            day_items.append(slot)
+        # Build weekly mapping day -> list of slots
+        d = row["day_of_week"]
+        if d not in weekly:
+            weekly[d] = []
+        weekly[d].append(slot)
+    return {"date": date_value, "view": view, "items": day_items, "weekly": weekly}
 
 
 def _student_results(conn, student_id, semester=6):
@@ -388,7 +541,58 @@ def _student_results(conn, student_id, semester=6):
     )
     total_credits = sum(row["credits"] for row in result_rows)
     total_credit_points = sum(row["credits"] * row["grade_point"] for row in result_rows)
-    return {"semester": int(semester), "summary": summary_rows, "items": result_rows, "sgpa": round(total_credit_points / total_credits, 2) if total_credits else 0}
+    computed_sgpa = round(total_credit_points / total_credits, 2) if total_credits else 0
+
+    # Pull per-semester performance row (SGPA, CGPA, rank, credits) for selected semester
+    sem_perf = None
+    for row in summary_rows:
+        if row["semester"] == int(semester):
+            sem_perf = row
+            break
+
+    assessment_rows = rows_to_dicts(
+        conn.execute(
+            """
+            SELECT
+              assessments.course_id,
+              assessments.exam_type,
+              assessments.max_score,
+              marks.score,
+              marks.remark
+            FROM assessments
+            JOIN marks ON marks.assessment_id = assessments.id
+            WHERE marks.student_id = ? AND assessments.semester = ?
+            ORDER BY assessments.course_id, assessments.exam_type
+            """,
+            (student_id, int(semester)),
+        ).fetchall()
+    )
+    assessment_map = defaultdict(list)
+    for row in assessment_rows:
+        assessment_map[row["course_id"]].append(
+            {
+                "examType": row["exam_type"],
+                "score": row["score"],
+                "maxScore": row["max_score"],
+                "remark": row["remark"],
+            }
+        )
+    for item in result_rows:
+        item["assessments"] = assessment_map.get(item["course_id"], [])
+        remarks = [x["remark"] for x in item["assessments"] if x.get("remark")]
+        item["teacher_remark"] = remarks[-1] if remarks else None
+
+    return {
+        "semester": int(semester),
+        "summary": summary_rows,
+        "items": result_rows,
+        "sgpa": sem_perf["sgpa"] if sem_perf else computed_sgpa,
+        "cgpa": sem_perf["cgpa"] if sem_perf else 0,
+        "credits_earned": sem_perf["credits_earned"] if sem_perf else total_credits,
+        "credits_registered": sem_perf["credits_registered"] if sem_perf else total_credits,
+        "rank_position": sem_perf["rank_position"] if sem_perf else None,
+        "academic_year": sem_perf["academic_year"] if sem_perf else None,
+    }
 
 
 def _student_assignments(conn, student_id):
@@ -402,9 +606,13 @@ def _student_assignments(conn, student_id):
               assignments.due_date,
               assignments.max_score,
               assignments.status,
+              assignments.attachment_name,
+              assignments.attachment_path,
               courses.name AS subject,
               assignment_submissions.status AS submission_status,
               assignment_submissions.score,
+              assignment_submissions.submission_text,
+              assignment_submissions.attachment_name AS submission_attachment_name,
               assignment_submissions.submitted_at
             FROM assignment_submissions
             JOIN assignments ON assignments.id = assignment_submissions.assignment_id
@@ -429,6 +637,69 @@ def _student_notices(conn):
             ORDER BY datetime(notices.created_at) DESC
             LIMIT 10
             """
+        ).fetchall()
+    )
+
+
+def _student_study_materials(conn, student_id):
+    """Return study materials for courses the student is enrolled in."""
+    return rows_to_dicts(
+        conn.execute(
+            """
+            SELECT
+              study_materials.id,
+              study_materials.title,
+              study_materials.material_type,
+              study_materials.attachment_name,
+              study_materials.attachment_path,
+              study_materials.external_url,
+              study_materials.created_at,
+              courses.name AS course_name,
+              courses.code AS course_code,
+              users.name AS teacher_name
+            FROM study_materials
+            JOIN courses ON courses.id = study_materials.course_id
+            JOIN users ON users.id = study_materials.uploaded_by
+            WHERE study_materials.course_id IN (
+              SELECT course_id FROM course_enrollments WHERE student_id = ?
+            )
+            ORDER BY datetime(study_materials.created_at) DESC
+            """,
+            (student_id,),
+        ).fetchall()
+    )
+
+
+def _student_exam_schedule(conn, student_id):
+    """Return upcoming and recent exam schedule for courses the student is enrolled in."""
+    return rows_to_dicts(
+        conn.execute(
+            """
+            SELECT
+              exam_schedule.id,
+              exam_schedule.exam_type,
+              exam_schedule.exam_date,
+              exam_schedule.start_time,
+              exam_schedule.venue,
+              exam_schedule.duration_minutes,
+              assessments.max_score AS max_marks,
+              exam_schedule.created_at,
+              courses.name AS course_name,
+              courses.code AS course_code,
+              users.name AS published_by
+            FROM exam_schedule
+            JOIN courses ON courses.id = exam_schedule.course_id
+            JOIN users ON users.id = exam_schedule.published_by
+            LEFT JOIN assessments
+              ON assessments.course_id = exam_schedule.course_id
+             AND assessments.exam_type = exam_schedule.exam_type
+             AND assessments.semester = courses.semester
+            WHERE exam_schedule.course_id IN (
+              SELECT course_id FROM course_enrollments WHERE student_id = ?
+            )
+            ORDER BY date(exam_schedule.exam_date), exam_schedule.start_time
+            """,
+            (student_id,),
         ).fetchall()
     )
 
@@ -470,7 +741,10 @@ def _student_placements(conn, student_id):
               placements.location,
               placements.status,
               placement_applications.status AS application_status,
-              placement_applications.note
+              placement_applications.note,
+              placement_applications.resume_link,
+              placement_applications.cover_letter,
+              placement_applications.applied_at
             FROM placements
             LEFT JOIN placement_applications
               ON placement_applications.placement_id = placements.id
@@ -494,7 +768,18 @@ def _student_grievances(conn, student_id):
 
 
 def _student_requests(conn, student_id):
-    return rows_to_dicts(conn.execute("SELECT id, request_type, from_date, to_date, reason, attachment_name, status, reviewed_at, created_at FROM workflow_requests WHERE student_id = ? ORDER BY datetime(created_at) DESC", (student_id,)).fetchall())
+    return rows_to_dicts(
+        conn.execute(
+            """
+            SELECT id, request_type, from_date, to_date, reason, attachment_name, status,
+                   reviewed_at, review_note, created_at
+            FROM workflow_requests
+            WHERE student_id = ?
+            ORDER BY datetime(created_at) DESC
+            """,
+            (student_id,),
+        ).fetchall()
+    )
 
 
 def get_student_dashboard(
@@ -506,10 +791,28 @@ def get_student_dashboard(
     attendance_view="overall",
     timetable_view="day",
     timetable_date=None,
+    attendance_month=None,
+    attendance_date=None,
+    attendance_from_date=None,
+    attendance_to_date=None,
 ):
     with connect(db_path) as conn:
         profile = get_profile(user_id, db_path)
-        attendance = _attendance_summary(conn, user_id, semester=attendance_semester, subject=attendance_subject)
+        student_semester = (profile.get("details") or {}).get("semester", 6)
+        if attendance_semester is None:
+            attendance_semester = student_semester
+        if results_semester is None:
+            results_semester = student_semester
+        attendance = _attendance_summary(
+            conn,
+            user_id,
+            semester=attendance_semester,
+            subject=attendance_subject,
+            month=attendance_month,
+            date_filter=attendance_date,
+            date_from=attendance_from_date,
+            date_to=attendance_to_date,
+        )
         assignments = _student_assignments(conn, user_id)
         fees = _student_fees(conn, user_id)
         grievances = _student_grievances(conn, user_id)
@@ -537,24 +840,24 @@ def get_student_dashboard(
             "fees": fees,
             "requests": _student_requests(conn, user_id),
             "grievances": grievances,
+            "studyMaterials": _student_study_materials(conn, user_id),
+            "examSchedule": _student_exam_schedule(conn, user_id),
             "notifications": get_notifications(user_id, db_path),
         }
 
 
-def get_student_attendance(user_id, db_path, semester=6, subject=None, month=None, date_filter=None):
+def get_student_attendance(user_id, db_path, semester=6, subject=None, month=None, date_filter=None, date_from=None, date_to=None):
     with connect(db_path) as conn:
+        if semester is None:
+            sem_row = conn.execute("SELECT semester FROM student_profiles WHERE user_id = ?", (user_id,)).fetchone()
+            semester = sem_row["semester"] if sem_row else 6
         params = [user_id, int(semester), subject, subject]
         clauses = [
             "attendance_records.student_id = ?",
             "courses.semester = ?",
             "(? IS NULL OR courses.name = ?)",
         ]
-        if month:
-            clauses.append("substr(attendance_sessions.session_date, 1, 7) = ?")
-            params.append(month)
-        if date_filter:
-            clauses.append("attendance_sessions.session_date = ?")
-            params.append(date_filter)
+        _apply_attendance_date_filters(clauses, params, month=month, date_filter=date_filter, date_from=date_from, date_to=date_to)
         sessions = rows_to_dicts(
             conn.execute(
                 f"""
@@ -599,15 +902,63 @@ def get_student_attendance(user_id, db_path, semester=6, subject=None, month=Non
                 day["medicalLeaveCount"] += 1
             day["sessions"].append(session)
         daywise = sorted(grouped.values(), key=lambda item: item["date"], reverse=True)
+        matrix_dates = []
+        matrix_lookup = {}
+        for session in reversed(sessions):
+            session_date = session["session_date"]
+            if session_date not in matrix_dates:
+                matrix_dates.append(session_date)
+            cell_key = f"{session['subject']}__{session_date}"
+            cell = matrix_lookup.setdefault(
+                cell_key,
+                {
+                    "subject": session["subject"],
+                    "code": session["code"],
+                    "date": session_date,
+                    "presentCount": 0,
+                    "absentCount": 0,
+                    "lateCount": 0,
+                    "medicalLeaveCount": 0,
+                    "sessionCount": 0,
+                },
+            )
+            cell["sessionCount"] += 1
+            if session["status"] == "present":
+                cell["presentCount"] += 1
+            elif session["status"] == "absent":
+                cell["absentCount"] += 1
+            elif session["status"] == "late":
+                cell["lateCount"] += 1
+            elif session["status"] == "medical_leave":
+                cell["medicalLeaveCount"] += 1
+        matrix_rows = []
+        for item in _attendance_summary(
+            conn,
+            user_id,
+            semester=semester,
+            subject=subject,
+            month=month,
+            date_filter=date_filter,
+            date_from=date_from,
+            date_to=date_to,
+        )["items"]:
+            row = {"subject": item["subject"], "code": item["code"], "cells": [], "total": item["attended"], "delivered": item["delivered"]}
+            for session_date in matrix_dates:
+                cell = matrix_lookup.get(f"{item['subject']}__{session_date}")
+                row["cells"].append(cell or {"subject": item["subject"], "code": item["code"], "date": session_date, "sessionCount": 0, "presentCount": 0, "absentCount": 0, "lateCount": 0, "medicalLeaveCount": 0})
+            matrix_rows.append(row)
         return {
-            "summary": _attendance_summary(conn, user_id, semester=semester, subject=subject, month=month, date_filter=date_filter),
+            "summary": _attendance_summary(conn, user_id, semester=semester, subject=subject, month=month, date_filter=date_filter, date_from=date_from, date_to=date_to),
             "sessions": sessions,
             "daywise": daywise,
+            "matrix": {"dates": matrix_dates, "rows": matrix_rows},
             "filters": {
                 "semester": int(semester),
                 "subject": subject or "",
                 "month": month or "",
                 "date": date_filter or "",
+                "fromDate": date_from or "",
+                "toDate": date_to or "",
             },
         }
 
@@ -635,6 +986,8 @@ def submit_student_request(user_id, payload, db_path):
 
 
 def submit_grievance(user_id, payload, db_path):
+    if get_setting(db_path, "grievance_module_active", "1") == "0":
+        raise ValueError("grievance module is currently disabled")
     with connect(db_path) as conn:
         conn.execute(
             """
@@ -676,7 +1029,134 @@ def pay_fee_items(user_id, fee_ids, db_path):
     return {"message": "payment recorded", "amount": total}
 
 
-def apply_for_placement(user_id, placement_id, db_path):
+def submit_assignment(user_id, assignment_id, payload, db_path):
+    note = (payload.get("submissionText") or payload.get("note") or "").strip()
+    attachment_name = (payload.get("attachmentName") or payload.get("attachment") or "").strip() or None
+    with connect(db_path) as conn:
+        submission = conn.execute(
+            """
+            SELECT assignment_submissions.id, assignment_submissions.status, assignments.title, assignments.due_date
+            FROM assignment_submissions
+            JOIN assignments ON assignments.id = assignment_submissions.assignment_id
+            WHERE assignment_submissions.assignment_id = ? AND assignment_submissions.student_id = ?
+            """,
+            (assignment_id, user_id),
+        ).fetchone()
+        if not submission:
+            raise ValueError("assignment not found")
+        if submission["status"] == "graded":
+            raise ValueError("graded submissions cannot be edited")
+        if submission["due_date"] and submission["due_date"] < date_today():
+            raise ValueError("assignment deadline has passed")
+        attachment_col = _assignment_submission_name_column(conn)
+        if attachment_col:
+            conn.execute(
+                f"""
+                UPDATE assignment_submissions
+                SET status = 'submitted', feedback = ?, {attachment_col} = ?, submitted_at = ?
+                WHERE assignment_id = ? AND student_id = ?
+                """,
+                (note, attachment_name, utc_now(), assignment_id, user_id),
+            )
+        else:
+            conn.execute(
+                f"""
+                UPDATE assignment_submissions
+                SET status = 'submitted', feedback = ?, submitted_at = ?
+                WHERE assignment_id = ? AND student_id = ?
+                """,
+                (note, utc_now(), assignment_id, user_id),
+            )
+        actor = get_user_by_id(user_id, db_path)
+        log_action(conn, user_id, actor["name"], "Submitted assignment", "assignment_submission", submission["id"], submission["title"])
+    return {"message": "assignment submitted"}
+
+
+def update_assignment_submission(user_id, assignment_id, payload, db_path):
+    note = (payload.get("submissionText") or payload.get("note") or "").strip()
+    attachment_name = (payload.get("attachmentName") or payload.get("attachment") or "").strip() or None
+    with connect(db_path) as conn:
+        submission = conn.execute(
+            """
+            SELECT assignment_submissions.id, assignment_submissions.status, assignments.due_date
+            FROM assignment_submissions
+            JOIN assignments ON assignments.id = assignment_submissions.assignment_id
+            WHERE assignment_submissions.assignment_id = ? AND assignment_submissions.student_id = ?
+            """,
+            (assignment_id, user_id),
+        ).fetchone()
+        if not submission:
+            raise ValueError("submission not found")
+        if submission["status"] == "graded":
+            raise ValueError("graded submissions cannot be edited")
+        if submission["due_date"] and submission["due_date"] < date_today():
+            raise ValueError("assignment deadline has passed")
+        attachment_col = _assignment_submission_name_column(conn)
+        if attachment_col:
+            conn.execute(
+                f"""
+                UPDATE assignment_submissions
+                SET status = 'submitted', feedback = ?, {attachment_col} = COALESCE(?, {attachment_col}), submitted_at = ?
+                WHERE assignment_id = ? AND student_id = ?
+                """,
+                (note, attachment_name, utc_now(), assignment_id, user_id),
+            )
+        else:
+            conn.execute(
+                f"""
+                UPDATE assignment_submissions
+                SET status = 'submitted', feedback = ?, submitted_at = ?
+                WHERE assignment_id = ? AND student_id = ?
+                """,
+                (note, utc_now(), assignment_id, user_id),
+            )
+        actor = get_user_by_id(user_id, db_path)
+        log_action(conn, user_id, actor["name"], "Updated assignment submission", "assignment_submission", submission["id"], None)
+    return {"message": "submission updated"}
+
+
+def delete_assignment_submission(user_id, assignment_id, db_path):
+    with connect(db_path) as conn:
+        submission = conn.execute(
+            """
+            SELECT assignment_submissions.id, assignment_submissions.status, assignments.due_date
+            FROM assignment_submissions
+            JOIN assignments ON assignments.id = assignment_submissions.assignment_id
+            WHERE assignment_submissions.assignment_id = ? AND assignment_submissions.student_id = ?
+            """,
+            (assignment_id, user_id),
+        ).fetchone()
+        if not submission:
+            raise ValueError("submission not found")
+        if submission["status"] == "graded":
+            raise ValueError("graded submissions cannot be deleted")
+        if submission["due_date"] and submission["due_date"] < date_today():
+            raise ValueError("assignment deadline has passed")
+        attachment_col = _assignment_submission_name_column(conn)
+        if attachment_col:
+            conn.execute(
+                f"""
+                UPDATE assignment_submissions
+                SET status = 'pending', feedback = NULL, {attachment_col} = NULL, submitted_at = NULL
+                WHERE assignment_id = ? AND student_id = ?
+                """,
+                (assignment_id, user_id),
+            )
+        else:
+            conn.execute(
+                f"""
+                UPDATE assignment_submissions
+                SET status = 'pending', feedback = NULL, submitted_at = NULL
+                WHERE assignment_id = ? AND student_id = ?
+                """,
+                (assignment_id, user_id),
+            )
+        actor = get_user_by_id(user_id, db_path)
+        log_action(conn, user_id, actor["name"], "Deleted assignment submission", "assignment_submission", submission["id"], None)
+    return {"message": "submission reset"}
+
+
+def apply_for_placement(user_id, placement_id, db_path, resume_link=None, cover_letter=None):
     with connect(db_path) as conn:
         placement = conn.execute("SELECT * FROM placements WHERE id = ?", (placement_id,)).fetchone()
         if not placement:
@@ -684,8 +1164,17 @@ def apply_for_placement(user_id, placement_id, db_path):
         if conn.execute("SELECT id FROM placement_applications WHERE placement_id = ? AND student_id = ?", (placement_id, user_id)).fetchone():
             raise ValueError("already applied")
         conn.execute(
-            "INSERT INTO placement_applications (placement_id, student_id, status, applied_at, note) VALUES (?, ?, 'applied', ?, ?)",
-            (placement_id, user_id, utc_now(), "Application submitted through student portal."),
+            """INSERT INTO placement_applications
+               (placement_id, student_id, status, applied_at, note, resume_link, cover_letter)
+               VALUES (?, ?, 'applied', ?, ?, ?, ?)""",
+            (
+                placement_id,
+                user_id,
+                utc_now(),
+                "Submitted via student portal",
+                (resume_link or "").strip() or None,
+                (cover_letter or "").strip() or None,
+            ),
         )
         actor = get_user_by_id(user_id, db_path)
         add_notification(conn, [user_id], "Placement Application Submitted", f"You have applied to {placement['company']} for {placement['role']}.", "placement", "#placements")
@@ -726,7 +1215,7 @@ def get_teacher_dashboard(user_id, db_path):
         profile = get_profile(user_id, db_path)
         courses = rows_to_dicts(
             conn.execute(
-                """
+                f"""
                 SELECT id, code, name, section, credits, status
                 FROM courses
                 WHERE teacher_id = ?
@@ -761,7 +1250,7 @@ def get_teacher_dashboard(user_id, db_path):
         avg_attendance = round(((attendance_row["attended"] or 0) / attendance_row["delivered"]) * 100, 2) if attendance_row["delivered"] else 0
         chart_rows = rows_to_dicts(
             conn.execute(
-                """
+                f"""
                 SELECT
                   courses.name || ' (' || courses.section || ')' AS label,
                   ROUND(AVG(marks.score), 2) AS avg_score
@@ -859,7 +1348,7 @@ def get_teacher_dashboard(user_id, db_path):
                 "students": unique_students,
                 "pendingAssignments": pending_assignments,
                 "avgAttendance": avg_attendance,
-                "todayClasses": len([slot for slot in timetable if slot["day_of_week"] == "Thursday"]),
+                "todayClasses": len([slot for slot in timetable if slot["day_of_week"] == datetime.now().strftime("%A")]),
             },
             "courses": courses,
             "chart": {"labels": [row["label"] for row in chart_rows], "values": [row["avg_score"] for row in chart_rows]},
@@ -878,28 +1367,113 @@ def get_teacher_dashboard(user_id, db_path):
         }
 
 
-def get_teacher_attendance(user_id, db_path, course_id=None, date_filter=None):
+def get_attendance_session(user_id, course_id, date_val, db_path):
+    """Return per-student attendance status for a specific course+date (for preloading the form)."""
+    with connect(db_path) as conn:
+        course = conn.execute("SELECT id FROM courses WHERE id = ? AND teacher_id = ?", (course_id, user_id)).fetchone()
+        if not course:
+            return {"records": [], "exists": False}
+        session_row = conn.execute(
+            "SELECT id FROM attendance_sessions WHERE course_id = ? AND session_date = ?",
+            (course_id, date_val),
+        ).fetchone()
+        if not session_row:
+            return {"records": [], "exists": False}
+        records = rows_to_dicts(conn.execute(
+            """
+            SELECT attendance_records.student_id, attendance_records.status, attendance_records.remark
+            FROM attendance_records
+            WHERE attendance_records.session_id = ?
+            """,
+            (session_row["id"],),
+        ).fetchall())
+        return {"records": records, "exists": True, "sessionId": session_row["id"]}
+
+
+def get_marks_session(user_id, course_id, exam_type, db_path):
+    """Return per-student scores for a specific course+exam_type (for preloading the marks form)."""
+    with connect(db_path) as conn:
+        course = conn.execute("SELECT id FROM courses WHERE id = ? AND teacher_id = ?", (course_id, user_id)).fetchone()
+        if not course:
+            return {"records": [], "exists": False, "maxScore": _default_max_score(exam_type)}
+        assessment = conn.execute(
+            "SELECT id, max_score FROM assessments WHERE course_id = ? AND exam_type = ? AND semester = 6",
+            (course_id, exam_type),
+        ).fetchone()
+        if not assessment:
+            return {"records": [], "exists": False, "maxScore": _default_max_score(exam_type)}
+        records = rows_to_dicts(conn.execute(
+            "SELECT student_id, score, remark FROM marks WHERE assessment_id = ?",
+            (assessment["id"],),
+        ).fetchall())
+        return {"records": records, "exists": True, "maxScore": assessment["max_score"], "assessmentId": assessment["id"]}
+
+
+def get_assignment_submissions(user_id, assignment_id, db_path):
+    """Return all student submissions for an assignment (for teacher review)."""
+    with connect(db_path) as conn:
+        assignment = conn.execute(
+            "SELECT id, title, max_score FROM assignments WHERE id = ? AND teacher_id = ?",
+            (assignment_id, user_id),
+        ).fetchone()
+        if not assignment:
+            return {"submissions": [], "assignment": None}
+        attachment_col = _assignment_submission_name_column(conn)
+        select_attachment = f", assignment_submissions.{attachment_col} AS file_name" if attachment_col else ""
+        submissions = rows_to_dicts(conn.execute(
+            f"""
+            SELECT
+              assignment_submissions.id AS submission_id,
+              users.id AS student_id,
+              users.name AS student_name,
+              users.roll_no,
+              assignment_submissions.status,
+              assignment_submissions.score,
+              assignment_submissions.feedback,
+              assignment_submissions.submitted_at,
+              assignment_submissions.submission_text
+              {select_attachment}
+            FROM assignment_submissions
+            JOIN users ON users.id = assignment_submissions.student_id
+            WHERE assignment_submissions.assignment_id = ?
+            ORDER BY assignment_submissions.status, users.name
+            """,
+            (assignment_id,),
+        ).fetchall())
+        return {
+            "submissions": submissions,
+            "assignment": dict(assignment),
+            "stats": {
+                "total": len(submissions),
+                "submitted": len([s for s in submissions if s["status"] in {"submitted", "graded"}]),
+                "pending": len([s for s in submissions if s["status"] == "pending"]),
+                "graded": len([s for s in submissions if s["status"] == "graded"]),
+            },
+        }
+
+
+def get_teacher_attendance(user_id, db_path, course_id=None, date_filter=None, from_date=None, to_date=None):
     with connect(db_path) as conn:
         params = [user_id]
         clauses = ["courses.teacher_id = ?"]
         if course_id:
             clauses.append("courses.id = ?")
             params.append(int(course_id))
-        if date_filter:
-            clauses.append("attendance_sessions.session_date = ?")
-            params.append(date_filter)
+        _apply_attendance_date_filters(clauses, params, date_filter=date_filter, date_from=from_date, date_to=to_date)
         rows = conn.execute(
             f"""
             SELECT
               attendance_sessions.id,
               attendance_sessions.session_date,
               courses.id AS course_id,
+              courses.code AS course_code,
               courses.name AS course_name,
               courses.section,
               COUNT(attendance_records.id) AS total_records,
               SUM(CASE WHEN attendance_records.status = 'present' THEN 1 ELSE 0 END) AS present_count,
               SUM(CASE WHEN attendance_records.status = 'absent' THEN 1 ELSE 0 END) AS absent_count,
-              SUM(CASE WHEN attendance_records.status = 'late' THEN 1 ELSE 0 END) AS late_count
+              SUM(CASE WHEN attendance_records.status = 'late' THEN 1 ELSE 0 END) AS late_count,
+              SUM(CASE WHEN attendance_records.status = 'medical_leave' THEN 1 ELSE 0 END) AS medical_leave_count
             FROM attendance_sessions
             JOIN courses ON courses.id = attendance_sessions.course_id
             LEFT JOIN attendance_records ON attendance_records.session_id = attendance_sessions.id
@@ -993,24 +1567,31 @@ def _recalculate_course_results(conn, course_id):
 def submit_teacher_marks(user_id, payload, db_path):
     course_id = int(payload["courseId"])
     exam_type = payload["examType"]
-    max_score = int(payload["maxScore"])
+    requested_max_score = int(payload["maxScore"])
     with connect(db_path) as conn:
         course = conn.execute("SELECT id, name FROM courses WHERE id = ? AND teacher_id = ?", (course_id, user_id)).fetchone()
         if not course:
             raise ValueError("course not found")
-        assessment = conn.execute("SELECT id FROM assessments WHERE course_id = ? AND exam_type = ? AND semester = 6", (course_id, exam_type)).fetchone()
+        assessment = conn.execute("SELECT id, max_score FROM assessments WHERE course_id = ? AND exam_type = ? AND semester = 6", (course_id, exam_type)).fetchone()
         if assessment:
             assessment_id = assessment["id"]
-            conn.execute("UPDATE assessments SET max_score = ?, published_on = ? WHERE id = ?", (max_score, date_today(), assessment_id))
+            max_score = int(assessment["max_score"])
+            conn.execute("UPDATE assessments SET published_on = ? WHERE id = ?", (date_today(), assessment_id))
         else:
+            max_score = requested_max_score
+            if max_score <= 0:
+                raise ValueError("max score must be greater than zero")
             conn.execute("INSERT INTO assessments (course_id, teacher_id, exam_type, max_score, semester, published_on) VALUES (?, ?, ?, ?, 6, ?)", (course_id, user_id, exam_type, max_score, date_today()))
             assessment_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         for record in payload["records"]:
+            score = float(record["score"])
+            if score < 0 or score > max_score:
+                raise ValueError(f"score must be between 0 and {max_score}")
             existing = conn.execute("SELECT id FROM marks WHERE assessment_id = ? AND student_id = ?", (assessment_id, int(record["studentId"]))).fetchone()
             if existing:
-                conn.execute("UPDATE marks SET score = ?, remark = ?, updated_at = ? WHERE id = ?", (float(record["score"]), record.get("remark", ""), utc_now(), existing["id"]))
+                conn.execute("UPDATE marks SET score = ?, remark = ?, updated_at = ? WHERE id = ?", (score, record.get("remark", ""), utc_now(), existing["id"]))
             else:
-                conn.execute("INSERT INTO marks (assessment_id, student_id, score, remark, updated_at) VALUES (?, ?, ?, ?, ?)", (assessment_id, int(record["studentId"]), float(record["score"]), record.get("remark", ""), utc_now()))
+                conn.execute("INSERT INTO marks (assessment_id, student_id, score, remark, updated_at) VALUES (?, ?, ?, ?, ?)", (assessment_id, int(record["studentId"]), score, record.get("remark", ""), utc_now()))
         _recalculate_course_results(conn, course_id)
         student_ids = [int(record["studentId"]) for record in payload["records"]]
         add_notification(conn, student_ids, "Marks Published", f"{course['name']} {exam_type} marks are now available in the portal.", "results", "#results")
@@ -1024,24 +1605,119 @@ def create_teacher_assignment(user_id, payload, db_path):
         course = conn.execute("SELECT id, name FROM courses WHERE id = ? AND teacher_id = ?", (int(payload["courseId"]), user_id)).fetchone()
         if not course:
             raise ValueError("course not found")
-        conn.execute(
-            """
-            INSERT INTO assignments (
-              course_id, teacher_id, title, description, due_date, max_score, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, 'open', ?)
-            """,
-            (course["id"], user_id, payload["title"].strip(), payload["description"].strip(), payload["dueDate"], int(payload["maxScore"]), utc_now()),
-        )
+        attachment_name = (payload.get("attachmentName") or "").strip()
+        attachment_path = (payload.get("attachmentPath") or "").strip()
+        description = payload["description"].strip()
+        if attachment_name and not _column_exists(conn, "assignments", "attachment_name"):
+            description = f"{description}\n\nAttachment: {attachment_name}{f' ({attachment_path})' if attachment_path else ''}"
+        has_attachment_columns = _column_exists(conn, "assignments", "attachment_name") and _column_exists(conn, "assignments", "attachment_path")
+        if has_attachment_columns:
+            conn.execute(
+                """
+                INSERT INTO assignments (
+                  course_id, teacher_id, title, description, due_date, max_score, attachment_name, attachment_path, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                """,
+                (
+                    course["id"],
+                    user_id,
+                    payload["title"].strip(),
+                    description,
+                    payload["dueDate"],
+                    int(payload["maxScore"]),
+                    attachment_name or None,
+                    attachment_path or None,
+                    utc_now(),
+                    utc_now(),
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO assignments (
+                  course_id, teacher_id, title, description, due_date, max_score, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                """,
+                (course["id"], user_id, payload["title"].strip(), description, payload["dueDate"], int(payload["maxScore"]), utc_now(), utc_now()),
+            )
         assignment_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         student_ids = [row["student_id"] for row in conn.execute("SELECT student_id FROM course_enrollments WHERE course_id = ?", (course["id"],)).fetchall()]
-        conn.executemany(
-            "INSERT INTO assignment_submissions (assignment_id, student_id, status, score, file_name, submitted_at, feedback) VALUES (?, ?, 'pending', NULL, NULL, NULL, NULL)",
-            [(assignment_id, student_id) for student_id in student_ids],
-        )
+        attachment_col = _assignment_submission_name_column(conn)
+        if attachment_col:
+            conn.executemany(
+                f"INSERT INTO assignment_submissions (assignment_id, student_id, status, score, {attachment_col}, submitted_at, feedback) VALUES (?, ?, 'pending', NULL, NULL, NULL, NULL)",
+                [(assignment_id, student_id) for student_id in student_ids],
+            )
+        else:
+            conn.executemany(
+                "INSERT INTO assignment_submissions (assignment_id, student_id, status, score, submitted_at, feedback) VALUES (?, ?, 'pending', NULL, NULL, NULL)",
+                [(assignment_id, student_id) for student_id in student_ids],
+            )
         add_notification(conn, student_ids, "New Assignment", f"{payload['title']} has been published for {course['name']}.", "assignment", "#assignments")
         actor = get_user_by_id(user_id, db_path)
         log_action(conn, user_id, actor["name"], "Created assignment", "assignment", assignment_id, payload["title"].strip())
     return {"message": "assignment created", "assignmentId": assignment_id}
+
+
+def update_teacher_assignment(user_id, assignment_id, payload, db_path):
+    with connect(db_path) as conn:
+        assignment = conn.execute(
+            """
+            SELECT assignments.id, assignments.course_id, assignments.title, assignments.description
+            FROM assignments
+            JOIN courses ON courses.id = assignments.course_id
+            WHERE assignments.id = ? AND courses.teacher_id = ?
+            """,
+            (assignment_id, user_id),
+        ).fetchone()
+        if not assignment:
+            raise ValueError("assignment not found")
+        next_title = (payload.get("title") or assignment["title"]).strip()
+        next_description = (payload.get("description") or assignment["description"] or "").strip()
+        next_due_date = (payload.get("dueDate") or "").strip()
+        next_status = (payload.get("status") or "open").strip().lower()
+        if next_status not in {"open", "closed"}:
+            raise ValueError("invalid assignment status")
+        next_max_score = int(payload.get("maxScore", 0) or 0)
+        if next_max_score <= 0:
+            raise ValueError("max score must be greater than 0")
+        attachment_name = (payload.get("attachmentName") or "").strip()
+        attachment_path = (payload.get("attachmentPath") or "").strip()
+        if attachment_name and not _column_exists(conn, "assignments", "attachment_name"):
+            next_description = f"{next_description}\n\nAttachment: {attachment_name}{f' ({attachment_path})' if attachment_path else ''}"
+        has_attachment_columns = _column_exists(conn, "assignments", "attachment_name") and _column_exists(conn, "assignments", "attachment_path")
+        if has_attachment_columns:
+            conn.execute(
+                """
+                UPDATE assignments
+                SET title = ?, description = ?, due_date = ?, max_score = ?, attachment_name = ?, attachment_path = ?, status = ?
+                WHERE id = ?
+                """,
+                (next_title, next_description, next_due_date, next_max_score, attachment_name or None, attachment_path or None, next_status, assignment_id),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE assignments
+                SET title = ?, description = ?, due_date = ?, max_score = ?, status = ?
+                WHERE id = ?
+                """,
+                (next_title, next_description, next_due_date, next_max_score, next_status, assignment_id),
+            )
+        actor = get_user_by_id(user_id, db_path)
+        log_action(conn, user_id, actor["name"], "Updated assignment", "assignment", assignment_id, next_title)
+    return {"message": "assignment updated", "assignmentId": assignment_id}
+
+
+def delete_teacher_assignment(user_id, assignment_id, db_path):
+    with connect(db_path) as conn:
+        assignment = conn.execute("SELECT id, title FROM assignments WHERE id = ? AND teacher_id = ?", (assignment_id, user_id)).fetchone()
+        if not assignment:
+            raise ValueError("assignment not found")
+        conn.execute("DELETE FROM assignments WHERE id = ?", (assignment_id,))
+        actor = get_user_by_id(user_id, db_path)
+        log_action(conn, user_id, actor["name"], "Deleted assignment", "assignment", assignment_id, assignment["title"])
+    return {"message": "assignment deleted"}
 
 
 def notify_student_from_teacher(user_id, payload, db_path):
@@ -1084,8 +1760,8 @@ def update_teacher_timetable_slot(user_id, slot_id, payload, db_path):
 def create_teacher_notice(user_id, payload, db_path):
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO notices (title, message, audience, priority, published_by, created_at, active) VALUES (?, ?, ?, ?, ?, ?, 1)",
-            (payload["title"].strip(), payload["message"].strip(), payload.get("audience", "student"), payload.get("priority", "medium"), user_id, utc_now()),
+            "INSERT INTO notices (title, message, audience, priority, published_by, created_at, updated_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+            (payload["title"].strip(), payload["message"].strip(), payload.get("audience", "student"), payload.get("priority", "medium"), user_id, utc_now(), utc_now()),
         )
         notice_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         if payload.get("audience", "student") in {"student", "all"}:
@@ -1094,6 +1770,33 @@ def create_teacher_notice(user_id, payload, db_path):
         actor = get_user_by_id(user_id, db_path)
         log_action(conn, user_id, actor["name"], "Published notice", "notice", notice_id, payload["title"].strip())
     return {"message": "notice published", "noticeId": notice_id}
+
+
+def _admin_workflow_requests(conn):
+    return rows_to_dicts(
+        conn.execute(
+            """
+            SELECT
+              workflow_requests.id,
+              workflow_requests.student_id,
+              users.name AS student_name,
+              users.roll_no,
+              workflow_requests.request_type,
+              workflow_requests.from_date,
+              workflow_requests.to_date,
+              workflow_requests.reason,
+              workflow_requests.attachment_name,
+              workflow_requests.status,
+              workflow_requests.reviewed_at,
+              workflow_requests.review_note,
+              workflow_requests.created_at
+            FROM workflow_requests
+            JOIN users ON users.id = workflow_requests.student_id
+            ORDER BY CASE workflow_requests.status WHEN 'pending' THEN 1 WHEN 'approved' THEN 2 ELSE 3 END,
+                     datetime(workflow_requests.created_at) DESC
+            """
+        ).fetchall()
+    )
 
 
 def get_admin_dashboard(user_id, db_path):
@@ -1137,13 +1840,19 @@ def get_admin_dashboard(user_id, db_path):
                   users.roll_no,
                   users.employee_id,
                   users.last_login_at,
-                  departments.code AS department
+                  departments.code AS department,
+                  GROUP_CONCAT(course_enrollments.course_id) AS enrolled_course_ids
                 FROM users
                 LEFT JOIN departments ON departments.id = users.department_id
+                LEFT JOIN course_enrollments ON course_enrollments.student_id = users.id
+                GROUP BY users.id
                 ORDER BY CASE users.role WHEN 'admin' THEN 1 WHEN 'teacher' THEN 2 ELSE 3 END, users.name
                 """
             ).fetchall()
         )
+        for user in users:
+            ids = [int(x) for x in str(user.get("enrolled_course_ids") or "").split(",") if x]
+            user["enrolledCourseIds"] = ids
         departments = rows_to_dicts(
             conn.execute(
                 """
@@ -1179,19 +1888,22 @@ def get_admin_dashboard(user_id, db_path):
                 FROM courses
                 JOIN departments ON departments.id = courses.department_id
                 JOIN users ON users.id = courses.teacher_id
-                ORDER BY courses.code
+                WHERE courses.section != 'ALL'
+                ORDER BY courses.semester DESC, courses.code
                 """
             ).fetchall()
         )
         timetable = rows_to_dicts(
             conn.execute(
-                """
+                f"""
                 SELECT
                   timetable_slots.id,
                   courses.code AS course_code,
                   courses.name AS course_name,
                   courses.section,
                   courses.id AS course_id,
+                  departments.code AS department_code,
+                  users.name AS teacher_name,
                   timetable_slots.day_of_week,
                   timetable_slots.start_time,
                   timetable_slots.end_time,
@@ -1201,7 +1913,10 @@ def get_admin_dashboard(user_id, db_path):
                   timetable_slots.note
                 FROM timetable_slots
                 JOIN courses ON courses.id = timetable_slots.course_id
-                ORDER BY courses.section, timetable_slots.day_of_week, timetable_slots.start_time
+                JOIN departments ON departments.id = courses.department_id
+                JOIN users ON users.id = courses.teacher_id
+                WHERE courses.section != 'ALL'
+                ORDER BY departments.code, courses.section, {_sql_day_order("timetable_slots.day_of_week")}, timetable_slots.start_time
                 """
             ).fetchall()
         )
@@ -1213,6 +1928,7 @@ def get_admin_dashboard(user_id, db_path):
                   users.name AS submitted_by,
                   grievances.category,
                   grievances.subject,
+                  grievances.message,
                   grievances.status,
                   grievances.priority,
                   grievances.resolution_note,
@@ -1222,6 +1938,24 @@ def get_admin_dashboard(user_id, db_path):
                 JOIN users ON users.id = grievances.submitted_by
                 ORDER BY CASE grievances.status WHEN 'open' THEN 1 WHEN 'in_review' THEN 2 ELSE 3 END,
                          datetime(grievances.created_at) DESC
+                """
+            ).fetchall()
+        )
+        workflow_requests = _admin_workflow_requests(conn)
+        fee_summary = rows_to_dicts(
+            conn.execute(
+                """
+                SELECT
+                  users.id AS student_id,
+                  users.name AS student_name,
+                  users.roll_no,
+                  COALESCE(SUM(CASE WHEN fee_items.status IN ('pending', 'overdue') THEN fee_items.amount ELSE 0 END), 0) AS due_amount,
+                  COUNT(CASE WHEN fee_items.status IN ('pending', 'overdue') THEN 1 END) AS pending_items
+                FROM users
+                LEFT JOIN fee_items ON fee_items.student_id = users.id
+                WHERE users.role = 'student' AND users.status = 'active'
+                GROUP BY users.id
+                ORDER BY due_amount DESC, users.name
                 """
             ).fetchall()
         )
@@ -1270,7 +2004,11 @@ def get_admin_dashboard(user_id, db_path):
             "departments": departments,
             "courses": courses,
             "timetable": timetable,
+            "attendanceAudit": _attendance_report_rows(conn),
+            "marksAudit": _marks_report_rows(conn),
             "grievances": grievances,
+            "workflowRequests": workflow_requests,
+            "feeSummary": fee_summary,
             "notices": notices,
             "reports": reports,
             "settings": settings,
@@ -1323,12 +2061,145 @@ def update_user_status(admin_id, target_user_id, status, db_path):
     if status not in {"active", "suspended", "archived"}:
         raise ValueError("invalid status")
     with connect(db_path) as conn:
+        target = conn.execute("SELECT id, role, email FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        if not target:
+            raise ValueError("user not found")
+        if target["role"] == "admin" and status in {"suspended", "archived"}:
+            raise ValueError("Administrator accounts cannot be suspended or archived")
+        if target_user_id == admin_id and status in {"suspended", "archived"}:
+            raise ValueError("You cannot suspend your own account")
         conn.execute("UPDATE users SET status = ?, updated_at = ? WHERE id = ?", (status, utc_now(), target_user_id))
-        add_notification(conn, [target_user_id], "Account Status Updated", f"Your account status is now {status}.", "system", "#profile")
+        if status != "active":
+            add_notification(conn, [target_user_id], "Account Status Updated", f"Your account status is now {status}.", "system", "#profile")
         actor = get_user_by_id(admin_id, db_path)
-        target = get_user_by_id(target_user_id, db_path)
         log_action(conn, admin_id, actor["name"], f"Updated user status to {status}", "user", target_user_id, target["email"] if target else None)
     return {"message": f"user {status}"}
+
+
+def update_user(admin_id, target_user_id, payload, db_path):
+    allowed_fields = {"name", "email", "phone", "department", "role"}
+    clean = {key: value for key, value in payload.items() if key in allowed_fields and value is not None}
+    if not clean:
+        raise ValueError("no user updates provided")
+    with connect(db_path) as conn:
+        target = conn.execute("SELECT id, email, role FROM users WHERE id = ?", (target_user_id,)).fetchone()
+        if not target:
+            raise ValueError("user not found")
+        updates = []
+        values = []
+        if clean.get("name"):
+            updates.append("name = ?")
+            values.append(clean["name"].strip())
+        if clean.get("email"):
+            updates.append("email = ?")
+            values.append(clean["email"].strip().lower())
+        if "phone" in clean:
+            updates.append("phone = ?")
+            values.append((clean.get("phone") or "").strip() or None)
+        if clean.get("role") in {"student", "teacher", "admin"}:
+            updates.append("role = ?")
+            values.append(clean["role"])
+        if clean.get("department"):
+            dept = conn.execute("SELECT id FROM departments WHERE code = ?", (clean["department"],)).fetchone()
+            updates.append("department_id = ?")
+            values.append(dept["id"] if dept else None)
+        updates.append("updated_at = ?")
+        values.append(utc_now())
+        values.append(target_user_id)
+        conn.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", values)
+        actor = get_user_by_id(admin_id, db_path)
+        log_action(conn, admin_id, actor["name"], "Updated user profile", "user", target_user_id, clean.get("email", target["email"]))
+    return {"message": "user updated"}
+
+
+def generate_student_document(user_id, doc_type, db_path):
+    normalized = (doc_type or "").strip().lower()
+    if normalized in {"id_card", "id"}:
+        normalized = "id-card"
+    if normalized in {"admit_card", "admit"}:
+        normalized = "admit-card"
+    if normalized not in {"id-card", "bonafide", "admit-card"}:
+        raise ValueError("invalid document type")
+    profile = get_profile(user_id, db_path)
+    if not profile or profile.get("role") != "student":
+        raise ValueError("student profile not found")
+    details = profile.get("details") or {}
+    has_photo = bool(profile.get("profileImageData"))
+    if normalized == "id-card":
+        filename = f"student-id-{user_id}.txt"
+        lines = [
+            "EduWorkflow Student Identity Card",
+            f"Name: {profile.get('name', '-')}",
+            f"Email: {profile.get('email', '-')}",
+            f"Program: {details.get('program', '-')}",
+            f"Batch: {details.get('batch', '-')}",
+            f"Semester: {details.get('semester', '-')}",
+            f"Section: {details.get('section', '-')}",
+            f"Department: {(profile.get('department') or {}).get('name', '-')}",
+            f"Photo Uploaded: {'Yes' if has_photo else 'No'}",
+            f"Issued On: {date_today()}",
+        ]
+    elif normalized == "admit-card":
+        with connect(db_path) as conn:
+            exams = rows_to_dicts(
+                conn.execute(
+                    """
+                    SELECT
+                      exam_schedule.exam_type,
+                      exam_schedule.exam_date,
+                      exam_schedule.start_time,
+                      exam_schedule.venue,
+                      exam_schedule.duration_minutes,
+                      courses.code AS course_code,
+                      courses.name AS course_name,
+                      users.name AS faculty_name
+                    FROM exam_schedule
+                    JOIN courses ON courses.id = exam_schedule.course_id
+                    JOIN users ON users.id = courses.teacher_id
+                    WHERE exam_schedule.course_id IN (
+                      SELECT course_id FROM course_enrollments WHERE student_id = ?
+                    )
+                    ORDER BY date(exam_schedule.exam_date), exam_schedule.start_time
+                    """,
+                    (user_id,),
+                ).fetchall()
+            )
+        filename = f"admit-card-{user_id}.txt"
+        lines = [
+            "EduWorkflow Admit Card",
+            f"Name: {profile.get('name', '-')}",
+            f"Roll No: {get_user_by_id(user_id, db_path).get('roll_no', '-')}",
+            f"Program: {details.get('program', '-')}",
+            f"Semester: {details.get('semester', '-')}",
+            f"Department: {(profile.get('department') or {}).get('name', '-')}",
+            f"Photo Uploaded: {'Yes' if has_photo else 'No'}",
+            "",
+            "Exam Schedule:",
+        ]
+        if exams:
+            for idx, exam in enumerate(exams, start=1):
+                lines.append(
+                    f"{idx}. {exam['exam_type']} | {exam['course_code']} {exam['course_name']} | "
+                    f"{exam['exam_date']} {exam['start_time']} | {exam['venue']} | {exam['duration_minutes']} mins | Faculty: {exam['faculty_name']}"
+                )
+        else:
+            lines.append("No scheduled exams found.")
+        lines.extend(["", f"Issued On: {date_today()}"])
+    else:
+        filename = f"bonafide-{user_id}.txt"
+        lines = [
+            "Bonafide Certificate",
+            "This is to certify that the following student is currently enrolled:",
+            f"Name: {profile.get('name', '-')}",
+            f"Program: {details.get('program', '-')}",
+            f"Batch: {details.get('batch', '-')}",
+            f"Academic Year: {details.get('academic_year', '-')}",
+            f"Semester: {details.get('semester', '-')}",
+            f"Department: {(profile.get('department') or {}).get('name', '-')}",
+            f"Issued Date: {date_today()}",
+            "For institutional verification only.",
+        ]
+    return {"filename": filename, "mimeType": "text/plain", "content": "\n".join(lines)}
 
 
 def reset_user_password(admin_id, target_user_id, new_password, db_path):
@@ -1343,14 +2214,125 @@ def reset_user_password(admin_id, target_user_id, new_password, db_path):
 
 def update_course(admin_id, course_id, payload, db_path):
     with connect(db_path) as conn:
+        course = conn.execute("SELECT id, teacher_id, name FROM courses WHERE id = ?", (course_id,)).fetchone()
+        if not course:
+            raise ValueError("course not found")
+        teacher_id = course["teacher_id"]
         if payload.get("teacherId"):
-            conn.execute("UPDATE courses SET teacher_id = ? WHERE id = ?", (int(payload["teacherId"]), course_id))
-            add_notification(conn, [int(payload["teacherId"])], "Course Assignment Updated", "You have been assigned a course by the admin team.", "course", "#courses")
+            teacher_id = int(payload["teacherId"])
+            conn.execute("UPDATE courses SET teacher_id = ? WHERE id = ?", (teacher_id, course_id))
+            add_notification(conn, [teacher_id], "Course Assignment Updated", "You have been assigned a course by the admin team.", "course", "#courses")
         if payload.get("status"):
             conn.execute("UPDATE courses SET status = ? WHERE id = ?", (payload["status"], course_id))
+        policies = payload.get("assessmentPolicies") or []
+        for policy in policies:
+            exam_type = (policy.get("examType") or "").strip()
+            if exam_type not in STANDARD_EXAM_TYPES:
+                continue
+            try:
+                max_score = int(policy.get("maxScore"))
+            except (TypeError, ValueError):
+                continue
+            if max_score <= 0:
+                continue
+            existing = conn.execute(
+                "SELECT id FROM assessments WHERE course_id = ? AND exam_type = ? AND semester = 6",
+                (course_id, exam_type),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    "UPDATE assessments SET max_score = ?, teacher_id = ?, published_on = ? WHERE id = ?",
+                    (max_score, teacher_id, date_today(), existing["id"]),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO assessments (course_id, teacher_id, exam_type, max_score, semester, published_on) VALUES (?, ?, ?, ?, 6, ?)",
+                    (course_id, teacher_id, exam_type, max_score, date_today()),
+                )
         actor = get_user_by_id(admin_id, db_path)
         log_action(conn, admin_id, actor["name"], "Updated course", "course", course_id, payload.get("note"))
     return {"message": "course updated"}
+
+
+def create_course(admin_id, payload, db_path):
+    required = ["code", "name", "department", "teacherId", "semester", "credits", "section"]
+    missing = [field for field in required if payload.get(field) in (None, "")]
+    if missing:
+        raise ValueError(f"missing fields: {', '.join(missing)}")
+    with connect(db_path) as conn:
+        dept = conn.execute("SELECT id FROM departments WHERE code = ?", (payload["department"].strip().upper(),)).fetchone()
+        if not dept:
+            raise ValueError("department not found")
+        teacher = conn.execute("SELECT id FROM users WHERE id = ? AND role = 'teacher'", (int(payload["teacherId"]),)).fetchone()
+        if not teacher:
+            raise ValueError("teacher not found")
+        conn.execute(
+            """
+            INSERT INTO courses (code, name, department_id, teacher_id, semester, credits, section, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload["code"].strip().upper(),
+                payload["name"].strip(),
+                dept["id"],
+                int(payload["teacherId"]),
+                int(payload["semester"]),
+                int(payload["credits"]),
+                payload["section"].strip().upper(),
+                payload.get("status", "active"),
+            ),
+        )
+        course_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        actor = get_user_by_id(admin_id, db_path)
+        log_action(conn, admin_id, actor["name"], "Created course", "course", course_id, payload["code"].strip().upper())
+    return {"message": "course created", "courseId": course_id}
+
+
+def create_department(admin_id, payload, db_path):
+    name = (payload.get("name") or "").strip()
+    code = (payload.get("code") or "").strip().upper()
+    if not name or not code:
+        raise ValueError("name and code are required")
+    with connect(db_path) as conn:
+        existing = conn.execute("SELECT id FROM departments WHERE code = ?", (code,)).fetchone()
+        if existing:
+            raise ValueError(f"department code '{code}' already exists")
+        conn.execute(
+            "INSERT INTO departments (name, code, hod_name, active) VALUES (?, ?, ?, 1)",
+            (name, code, (payload.get("hodName") or "").strip()),
+        )
+        new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        actor = get_user_by_id(admin_id, db_path)
+        log_action(conn, admin_id, actor["name"], "Created department", "department", new_id, name)
+    return {"message": "department created", "id": new_id}
+
+
+def manage_department(admin_id, department_id, payload, db_path):
+    with connect(db_path) as conn:
+        department = conn.execute("SELECT id, name FROM departments WHERE id = ?", (department_id,)).fetchone()
+        if not department:
+            raise ValueError("department not found")
+        updates = []
+        values = []
+        if payload.get("name"):
+            updates.append("name = ?")
+            values.append(payload["name"].strip())
+        if payload.get("code"):
+            updates.append("code = ?")
+            values.append(payload["code"].strip().upper())
+        if "hodName" in payload:
+            updates.append("hod_name = ?")
+            values.append((payload.get("hodName") or "").strip())
+        if "active" in payload:
+            updates.append("active = ?")
+            values.append(1 if str(payload["active"]).lower() in {"1", "true", "yes"} else 0)
+        if not updates:
+            raise ValueError("no department updates provided")
+        values.append(department_id)
+        conn.execute(f"UPDATE departments SET {', '.join(updates)} WHERE id = ?", values)
+        actor = get_user_by_id(admin_id, db_path)
+        log_action(conn, admin_id, actor["name"], "Managed department", "department", department_id, payload.get("name", department["name"]))
+    return {"message": "department updated"}
 
 
 def create_or_update_timetable(admin_id, payload, db_path, slot_id=None):
@@ -1391,14 +2373,137 @@ def create_or_update_timetable(admin_id, payload, db_path, slot_id=None):
     return {"message": "timetable saved", "slotId": affected_slot_id}
 
 
+def check_timetable_clashes(db_path):
+    with connect(db_path) as conn:
+        rows = rows_to_dicts(
+            conn.execute(
+                """
+                SELECT
+                  day_of_week, start_time, end_time, room,
+                  COUNT(*) AS total,
+                  GROUP_CONCAT(timetable_slots.id) AS slot_ids,
+                  GROUP_CONCAT(courses.code || ' (' || courses.section || ')', ' | ') AS courses
+                FROM timetable_slots
+                JOIN courses ON courses.id = timetable_slots.course_id
+                GROUP BY day_of_week, start_time, end_time, room
+                HAVING COUNT(*) > 1
+                ORDER BY { _sql_day_order("day_of_week") }, start_time
+                """
+            ).fetchall()
+        )
+    clashes = [
+        {
+            "day": row["day_of_week"],
+            "startTime": row["start_time"],
+            "endTime": row["end_time"],
+            "room": row["room"],
+            "slotIds": row["slot_ids"].split(",") if row.get("slot_ids") else [],
+            "count": row["total"],
+            "courses": row.get("courses") or "",
+        }
+        for row in rows
+    ]
+    return {"hasClash": bool(clashes), "clashes": clashes}
+
+
+def export_courses_csv(db_path):
+    with connect(db_path) as conn:
+        rows = rows_to_dicts(
+            conn.execute(
+                """
+                SELECT courses.code, courses.name, departments.code AS department,
+                       users.name AS teacher, courses.section, courses.semester,
+                       courses.credits, courses.status
+                FROM courses
+                JOIN departments ON departments.id = courses.department_id
+                JOIN users ON users.id = courses.teacher_id
+                ORDER BY courses.code
+                """
+            ).fetchall()
+        )
+    header = "code,name,department,teacher,section,semester,credits,status"
+    body = [
+        ",".join(
+            [
+                str(row["code"]),
+                str(row["name"]).replace(",", " "),
+                str(row["department"]),
+                str(row["teacher"]).replace(",", " "),
+                str(row["section"]),
+                str(row["semester"]),
+                str(row["credits"]),
+                str(row["status"]),
+            ]
+        )
+        for row in rows
+    ]
+    return "\n".join([header, *body])
+
+
+def export_attendance_csv(db_path):
+    with connect(db_path) as conn:
+        rows = _attendance_report_rows(conn)
+    header = "session_date,department,course_code,course_name,section,teacher,total_records,present_count,absent_count,late_count,medical_leave_count"
+    body = [
+        ",".join(
+            [
+                str(row["session_date"]),
+                str(row["department_code"]),
+                str(row["course_code"]),
+                str(row["course_name"]).replace(",", " "),
+                str(row["section"]),
+                str(row["teacher_name"]).replace(",", " "),
+                str(row["total_records"] or 0),
+                str(row["present_count"] or 0),
+                str(row["absent_count"] or 0),
+                str(row["late_count"] or 0),
+                str(row["medical_leave_count"] or 0),
+            ]
+        )
+        for row in rows
+    ]
+    return "\n".join([header, *body])
+
+
+def export_marks_csv(db_path):
+    with connect(db_path) as conn:
+        rows = _marks_report_rows(conn)
+    header = "published_on,department,course_code,course_name,section,teacher,exam_type,max_score,records_count,average_score,highest_score,lowest_score"
+    body = [
+        ",".join(
+            [
+                str(row["published_on"] or ""),
+                str(row["department_code"]),
+                str(row["course_code"]),
+                str(row["course_name"]).replace(",", " "),
+                str(row["section"]),
+                str(row["teacher_name"]).replace(",", " "),
+                str(row["exam_type"]),
+                str(row["max_score"]),
+                str(row["records_count"] or 0),
+                str(row["average_score"] or 0),
+                str(row["highest_score"] or 0),
+                str(row["lowest_score"] or 0),
+            ]
+        )
+        for row in rows
+    ]
+    return "\n".join([header, *body])
+
+
 def publish_notice(admin_id, payload, db_path):
     with connect(db_path) as conn:
+        audience = (payload.get("audience", "all") or "all").strip()
+        priority = (payload.get("priority", "medium") or "medium").strip()
+        if audience not in {"all", "student", "teacher"}:
+            raise ValueError("invalid notice audience")
+        if priority not in {"high", "medium", "low"}:
+            raise ValueError("invalid notice priority")
         conn.execute(
-            "INSERT INTO notices (title, message, audience, priority, published_by, created_at, active) VALUES (?, ?, ?, ?, ?, ?, 1)",
-            (payload["title"].strip(), payload["message"].strip(), payload.get("audience", "all"), payload.get("priority", "medium"), admin_id, utc_now()),
+            "INSERT INTO notices (title, message, audience, priority, published_by, created_at, updated_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+            (payload["title"].strip(), payload["message"].strip(), audience, priority, admin_id, utc_now(), utc_now()),
         )
         notice_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-        audience = payload.get("audience", "all")
         if audience == "student":
             target_ids = [row["id"] for row in conn.execute("SELECT id FROM users WHERE role = 'student' AND status = 'active'").fetchall()]
         elif audience == "teacher":
@@ -1413,13 +2518,69 @@ def publish_notice(admin_id, payload, db_path):
 
 def unpublish_notice(admin_id, notice_id, db_path):
     with connect(db_path) as conn:
-        conn.execute("UPDATE notices SET active = 0 WHERE id = ?", (notice_id,))
+        notice = conn.execute("SELECT id, title FROM notices WHERE id = ?", (notice_id,)).fetchone()
+        if not notice:
+            raise ValueError("notice not found")
+        conn.execute("UPDATE notices SET active = 0, updated_at = ?, updated_by = ? WHERE id = ?", (utc_now(), admin_id, notice_id))
         actor = get_user_by_id(admin_id, db_path)
-        log_action(conn, admin_id, actor["name"], "Unpublished notice", "notice", notice_id, None)
+        log_action(conn, admin_id, actor["name"], "Unpublished notice", "notice", notice_id, notice["title"])
     return {"message": "notice unpublished"}
 
 
-def resolve_grievance(admin_id, grievance_id, resolution_note, db_path):
+def update_notice(admin_id, notice_id, payload, db_path):
+    with connect(db_path) as conn:
+        notice = conn.execute("SELECT id, title, active, audience FROM notices WHERE id = ?", (notice_id,)).fetchone()
+        if not notice:
+            raise ValueError("notice not found")
+        updates = []
+        values = []
+        if payload.get("title"):
+            updates.append("title = ?")
+            values.append(payload["title"].strip())
+        if payload.get("message"):
+            updates.append("message = ?")
+            values.append(payload["message"].strip())
+        if payload.get("audience"):
+            if payload["audience"].strip() not in {"all", "student", "teacher"}:
+                raise ValueError("invalid notice audience")
+            updates.append("audience = ?")
+            values.append(payload["audience"].strip())
+        if payload.get("priority"):
+            if payload["priority"].strip() not in {"high", "medium", "low"}:
+                raise ValueError("invalid notice priority")
+            updates.append("priority = ?")
+            values.append(payload["priority"].strip())
+        if "active" in payload:
+            updates.append("active = ?")
+            values.append(1 if str(payload["active"]).lower() in {"1", "true", "yes"} else 0)
+        if not updates:
+            raise ValueError("no notice updates provided")
+        updates.append("updated_at = ?")
+        values.append(utc_now())
+        updates.append("updated_by = ?")
+        values.append(admin_id)
+        values.append(notice_id)
+        conn.execute(f"UPDATE notices SET {', '.join(updates)} WHERE id = ?", values)
+        audience = (payload.get("audience") or notice["audience"] or "all").strip()
+        active = payload.get("active", notice["active"])
+        is_active = str(active).lower() in {"1", "true", "yes"} if isinstance(active, str) else bool(active)
+        if is_active:
+            if audience == "student":
+                target_ids = [row["id"] for row in conn.execute("SELECT id FROM users WHERE role = 'student' AND status = 'active'").fetchall()]
+            elif audience == "teacher":
+                target_ids = [row["id"] for row in conn.execute("SELECT id FROM users WHERE role = 'teacher' AND status = 'active'").fetchall()]
+            else:
+                target_ids = [row["id"] for row in conn.execute("SELECT id FROM users WHERE status = 'active'").fetchall()]
+            add_notification(conn, target_ids, "Notice Updated", (payload.get("title") or notice["title"]).strip(), "notice", "#notices")
+        actor = get_user_by_id(admin_id, db_path)
+        log_action(conn, admin_id, actor["name"], "Updated notice", "notice", notice_id, payload.get("title", notice["title"]))
+    return {"message": "notice updated"}
+
+
+def resolve_grievance(admin_id, grievance_id, resolution_note, db_path, status="resolved"):
+    normalized_status = (status or "resolved").strip().lower()
+    if normalized_status not in {"in_review", "resolved", "closed"}:
+        raise ValueError("invalid grievance status")
     with connect(db_path) as conn:
         grievance = conn.execute("SELECT submitted_by FROM grievances WHERE id = ?", (grievance_id,)).fetchone()
         if not grievance:
@@ -1427,15 +2588,238 @@ def resolve_grievance(admin_id, grievance_id, resolution_note, db_path):
         conn.execute(
             """
             UPDATE grievances
-            SET status = 'resolved', resolution_note = ?, updated_at = ?, assigned_to = ?
+            SET status = ?, resolution_note = ?, updated_at = ?, assigned_to = ?
             WHERE id = ?
             """,
-            (resolution_note.strip(), utc_now(), admin_id, grievance_id),
+            (normalized_status, resolution_note.strip(), utc_now(), admin_id, grievance_id),
         )
-        add_notification(conn, [grievance["submitted_by"]], "Grievance Resolved", resolution_note.strip(), "grievance", "#grievance")
+        add_notification(conn, [grievance["submitted_by"]], f"Grievance {titleize_status(normalized_status)}", resolution_note.strip(), "grievance", "#grievance")
         actor = get_user_by_id(admin_id, db_path)
-        log_action(conn, admin_id, actor["name"], "Resolved grievance", "grievance", grievance_id, resolution_note.strip())
-    return {"message": "grievance resolved"}
+        log_action(conn, admin_id, actor["name"], f"Updated grievance status to {normalized_status}", "grievance", grievance_id, resolution_note.strip())
+    return {"message": f"grievance {normalized_status}"}
+
+
+def resolve_workflow_request(admin_id, request_id, decision, review_note, db_path):
+    normalized = (decision or "").strip().lower()
+    if normalized not in {"approved", "rejected"}:
+        raise ValueError("invalid decision")
+    with connect(db_path) as conn:
+        req = conn.execute(
+            """
+            SELECT id, student_id, request_type, from_date, to_date, status
+            FROM workflow_requests
+            WHERE id = ?
+            """,
+            (request_id,),
+        ).fetchone()
+        if not req:
+            raise ValueError("request not found")
+        if req["status"] != "pending":
+            raise ValueError("request already reviewed")
+        conn.execute(
+            """
+            UPDATE workflow_requests
+            SET status = ?, reviewed_by = ?, reviewed_at = ?, review_note = ?
+            WHERE id = ?
+            """,
+            (normalized, admin_id, utc_now(), (review_note or "").strip(), request_id),
+        )
+        auto_marked = 0
+        if normalized == "approved" and req["request_type"] == "medical_leave":
+            session_rows = conn.execute(
+                """
+                SELECT attendance_sessions.id AS session_id
+                FROM attendance_sessions
+                JOIN course_enrollments ON course_enrollments.course_id = attendance_sessions.course_id
+                WHERE course_enrollments.student_id = ?
+                  AND date(attendance_sessions.session_date) BETWEEN date(?) AND date(?)
+                """,
+                (req["student_id"], req["from_date"], req["to_date"]),
+            ).fetchall()
+            for row in session_rows:
+                existing = conn.execute(
+                    "SELECT id FROM attendance_records WHERE session_id = ? AND student_id = ?",
+                    (row["session_id"], req["student_id"]),
+                ).fetchone()
+                if existing:
+                    conn.execute(
+                        "UPDATE attendance_records SET status = 'medical_leave', remark = COALESCE(remark, 'Auto-approved medical leave') WHERE id = ?",
+                        (existing["id"],),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO attendance_records (session_id, student_id, status, remark) VALUES (?, ?, 'medical_leave', ?)",
+                        (row["session_id"], req["student_id"], "Auto-approved medical leave"),
+                    )
+                auto_marked += 1
+        add_notification(
+            conn,
+            [req["student_id"]],
+            "Request Reviewed",
+            f"Your {req['request_type'].replace('_', ' ')} request has been {normalized}.",
+            "workflow",
+            "#requests",
+        )
+        actor = get_user_by_id(admin_id, db_path)
+        log_action(
+            conn,
+            admin_id,
+            actor["name"],
+            f"Reviewed workflow request ({normalized})",
+            "workflow_request",
+            request_id,
+            (review_note or "").strip(),
+        )
+    return {"message": f"request {normalized}", "autoMarkedAttendance": auto_marked}
+
+
+def create_fee_item(admin_id, payload, db_path):
+    fee_head = (payload.get("feeHead") or "").strip()
+    term_label = (payload.get("termLabel") or "").strip()
+    due_date = (payload.get("dueDate") or "").strip()
+    amount = float(payload.get("amount", 0) or 0)
+    if not fee_head or not term_label or not due_date or amount <= 0:
+        raise ValueError("feeHead, termLabel, dueDate and positive amount are required")
+    target = (payload.get("target") or "student").strip().lower()
+    with connect(db_path) as conn:
+        if target == "all_students":
+            student_ids = [row["id"] for row in conn.execute("SELECT id FROM users WHERE role = 'student' AND status = 'active'").fetchall()]
+        else:
+            student_id = int(payload.get("studentId") or 0)
+            if not student_id:
+                raise ValueError("studentId is required")
+            exists = conn.execute("SELECT id FROM users WHERE id = ? AND role = 'student'", (student_id,)).fetchone()
+            if not exists:
+                raise ValueError("student not found")
+            student_ids = [student_id]
+        created_at_value = utc_now()
+        for student_id in student_ids:
+            conn.execute(
+                """
+                INSERT INTO fee_items (student_id, fee_head, term_label, amount, due_date, status, created_by, created_at, note)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+                """,
+                (student_id, fee_head, term_label, amount, due_date, admin_id, created_at_value, (payload.get("note") or "").strip() or None),
+            )
+        actor = get_user_by_id(admin_id, db_path)
+        log_action(conn, admin_id, actor["name"], "Created fee item(s)", "fee_item", None, f"{fee_head} for {len(student_ids)} student(s)")
+    return {"message": "fee items created", "count": len(student_ids)}
+
+
+def titleize_status(value):
+    return str(value).replace("_", " ").title()
+
+
+def resolve_attachment_download(owner_user_id, role, item_type, item_id, db_path):
+    with connect(db_path) as conn:
+        if item_type == "study_material":
+            row = conn.execute(
+                """
+                SELECT id, attachment_name, attachment_path, external_url
+                FROM study_materials
+                WHERE id = ?
+                """,
+                (item_id,),
+            ).fetchone()
+            if not row:
+                raise ValueError("study material not found")
+            if role == "student":
+                allowed = conn.execute(
+                    """
+                    SELECT 1
+                    FROM course_enrollments
+                    WHERE student_id = ? AND course_id = (SELECT course_id FROM study_materials WHERE id = ?)
+                    """,
+                    (owner_user_id, item_id),
+                ).fetchone()
+                if not allowed:
+                    raise ValueError("not authorized")
+            elif role == "teacher":
+                allowed = conn.execute(
+                    """
+                    SELECT 1 FROM courses
+                    WHERE teacher_id = ? AND id = (SELECT course_id FROM study_materials WHERE id = ?)
+                    """,
+                    (owner_user_id, item_id),
+                ).fetchone()
+                if not allowed:
+                    raise ValueError("not authorized")
+        elif item_type == "assignment_file":
+            row = conn.execute(
+                """
+                SELECT id, attachment_name, attachment_path
+                FROM assignments
+                WHERE id = ?
+                """,
+                (item_id,),
+            ).fetchone()
+            if not row:
+                raise ValueError("assignment not found")
+            if role == "student":
+                allowed = conn.execute(
+                    """
+                    SELECT 1
+                    FROM course_enrollments
+                    WHERE student_id = ? AND course_id = (SELECT course_id FROM assignments WHERE id = ?)
+                    """,
+                    (owner_user_id, item_id),
+                ).fetchone()
+                if not allowed:
+                    raise ValueError("not authorized")
+            elif role == "teacher":
+                allowed = conn.execute("SELECT 1 FROM assignments WHERE id = ? AND teacher_id = ?", (item_id, owner_user_id)).fetchone()
+                if not allowed:
+                    raise ValueError("not authorized")
+        elif item_type == "assignment_submission":
+            row = conn.execute(
+                """
+                SELECT assignment_submissions.id, assignment_submissions.attachment_name, assignment_submissions.attachment_path
+                FROM assignment_submissions
+                WHERE assignment_submissions.id = ?
+                """,
+                (item_id,),
+            ).fetchone()
+            if not row:
+                raise ValueError("submission not found")
+        else:
+            raise ValueError("invalid item type")
+        if not row["attachment_name"]:
+            raise ValueError("no attachment available")
+        path = (row["attachment_path"] or "").strip()
+        if path:
+            abs_path = path if os.path.isabs(path) else os.path.abspath(os.path.join(os.path.dirname(db_path), path))
+            if os.path.exists(abs_path):
+                return {"mode": "file", "path": abs_path, "filename": row["attachment_name"]}
+        return {
+            "mode": "virtual",
+            "filename": row["attachment_name"],
+            "mimeType": "text/plain",
+            "content": f"Attachment metadata only.\nFile Name: {row['attachment_name']}\nStored Path: {path or '-'}\n",
+            "externalUrl": row["external_url"] if "external_url" in row.keys() else None,
+        }
+
+
+def enroll_student_to_course(admin_id, student_id, course_id, db_path):
+    with connect(db_path) as conn:
+        student = conn.execute("SELECT id, name FROM users WHERE id = ? AND role = 'student'", (student_id,)).fetchone()
+        course = conn.execute("SELECT id, name FROM courses WHERE id = ?", (course_id,)).fetchone()
+        if not student or not course:
+            raise ValueError("student or course not found")
+        existing = conn.execute("SELECT id FROM course_enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id)).fetchone()
+        if existing:
+            return {"message": "already enrolled"}
+        conn.execute("INSERT INTO course_enrollments (course_id, student_id, status) VALUES (?, ?, 'enrolled')", (course_id, student_id))
+        actor = get_user_by_id(admin_id, db_path)
+        log_action(conn, admin_id, actor["name"], "Enrolled student to course", "course_enrollment", None, f"{student['name']} -> {course['name']}")
+    return {"message": "student enrolled"}
+
+
+def remove_student_enrollment(admin_id, student_id, course_id, db_path):
+    with connect(db_path) as conn:
+        conn.execute("DELETE FROM course_enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id))
+        actor = get_user_by_id(admin_id, db_path)
+        log_action(conn, admin_id, actor["name"], "Removed student enrollment", "course_enrollment", None, f"{student_id} from {course_id}")
+    return {"message": "enrollment removed"}
 
 
 def update_settings(admin_id, payload, db_path):

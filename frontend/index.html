@@ -2,47 +2,25 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>EduWorkflow — Login</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>EduWorkflow — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="css/login.css">
 </head>
 <body>
-
 <canvas id="bg"></canvas>
 <div id="glow"></div>
-
 <div class="hero">
   <div class="hero-badge"><span class="badge-dot"></span>Academic Platform &middot; 2026</div>
-  <div class="hero-h">Edu<br><span class="stroke">Workflow</span></div>
+  <div class="hero-h">Edu<br><span class="stroke">Track</span></div>
   <div class="hero-bar"></div>
-  <p class="hero-copy">Secure academic performance management,<br>built for the modern educator.</p>
-
+  <p class="hero-copy">Unified academic performance management<br>built for modern institutions.</p>
   <div class="feat-list">
-    <div class="feat">
-      <div class="feat-icon fi-lock">🔐</div>
-      <div>
-        <div class="feat-title">Secure Access</div>
-        <div class="feat-sub">End-to-end encrypted sessions</div>
-      </div>
-    </div>
-    <div class="feat">
-      <div class="feat-icon fi-chart">📊</div>
-      <div>
-        <div class="feat-title">Real-time Analytics</div>
-        <div class="feat-sub">Live performance dashboards</div>
-      </div>
-    </div>
-    <div class="feat">
-      <div class="feat-icon fi-rocket">🚀</div>
-      <div>
-        <div class="feat-title">Optimized Workflow</div>
-        <div class="feat-sub">Cut grading time by 60%</div>
-      </div>
-    </div>
+    <div class="feat"><div class="feat-icon fi-lock">🔐</div><div><div class="feat-title">Secure Access</div><div class="feat-sub">Role-based encrypted sessions</div></div></div>
+    <div class="feat"><div class="feat-icon fi-chart">📊</div><div><div class="feat-title">Live Analytics</div><div class="feat-sub">Real-time performance dashboards</div></div></div>
+    <div class="feat"><div class="feat-icon fi-rocket">🚀</div><div><div class="feat-title">Smart Workflow</div><div class="feat-sub">Automate admin operations</div></div></div>
   </div>
 </div>
-
 <div class="shell">
   <div class="card">
     <div class="top-row">
@@ -51,45 +29,29 @@
     </div>
     <h1 class="heading">Welcome Back</h1>
     <p class="sub">Sign in to continue to your dashboard</p>
-
-    <!-- Optional role buttons kept as comment for future use
-    <div class="roles">
-      <button class="role on" data-email="s@x.com" onclick="pickRole(this)">🎒 Student</button>
-      <button class="role" data-email="t@x.com" onclick="pickRole(this)">📚 Teacher</button>
-      <button class="role" data-email="a@x.com" onclick="pickRole(this)">🛡 Admin</button>
-    </div>
-    -->
-
-    <div style="margin-bottom:4px;">
+    <div style="margin-bottom:4px">
       <label class="lbl" for="email">Email Address</label>
-      <div class="inp-wrap">
-        <input id="email" type="email" placeholder="you@school.edu" autocomplete="username"/>
-      </div>
+      <div class="inp-wrap"><input id="email" type="email" placeholder="you@university.edu" autocomplete="username"/></div>
       <div class="hint" id="e-hint"></div>
     </div>
-
     <div>
       <label class="lbl" for="pwd">Password</label>
       <div class="inp-wrap">
-        <input id="pwd" type="password" placeholder="•••" autocomplete="current-password"/>
-        <button class="eye" id="eyeBtn" onclick="toggleEye()" type="button">&#128065;</button>
+        <input id="pwd" type="password" placeholder="••••••" autocomplete="current-password"/>
+        <button class="eye" id="eyeBtn" type="button" aria-label="Toggle password visibility">👁</button>
       </div>
       <div class="hint" id="p-hint"></div>
     </div>
-
     <div class="meta">
       <label class="remember"><input type="checkbox"/> Remember me</label>
       <a href="#" class="forgot">Forgot password?</a>
     </div>
-
-    <button class="btn" type="button" onclick="doLogin()">Sign In</button>
+    <button class="btn" type="button" id="loginBtn">Sign In</button>
     <div class="divider"><hr/><span>SECURE LOGIN</span><hr/></div>
-    <div class="foot">End-to-end encrypted &middot; EduWorkflow 2026</div>
+    <div class="foot">End-to-end encrypted &middot; EduWorkflow v8.0</div>
   </div>
 </div>
-
 <div id="toast"></div>
-
 <script src="api.js"></script>
 <script src="login.js"></script>
 </body>
