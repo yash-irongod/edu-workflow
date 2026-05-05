@@ -350,6 +350,9 @@ function setActiveSection(id) {
   qsa(".view-section").forEach(s => s.classList.toggle("hidden", s.id !== target));
   if (state.ui.navOpen) toggleNav(false);
   updateSectionLabel(target);
+  // Scroll workspace to top on section switch
+  const ws = document.querySelector(".page-body");
+  if (ws) ws.scrollIntoView({ behavior: "smooth", block: "start" });
   persistState();
 }
 function toggleNav(force) {
@@ -473,7 +476,7 @@ function initNotifBtn() {
 // ── Charts ────────────────────────────────────────────────────
 function destroyChart(name) { if (state.charts[name]) { state.charts[name].destroy(); state.charts[name] = null; } }
 
-const CHART_COLORS = ["#e05c2a","#1f5fa6","#1a7a56","#c07a15","#6d44d4","#c0384a","#0891b2","#84cc16"];
+const CHART_COLORS = ["#d94f09","#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#06b6d4","#84cc16"];
 
 function lineChart(canvasId, name, labels, datasets) {
   destroyChart(name);
@@ -483,12 +486,16 @@ function lineChart(canvasId, name, labels, datasets) {
     type: "line",
     data: { labels, datasets: datasets.map((d, i) => ({
       label: d.label, data: d.values, borderColor: CHART_COLORS[i] || CHART_COLORS[0],
-      backgroundColor: CHART_COLORS[i] + "18", borderWidth: 2, tension: 0.35,
-      fill: true, pointBackgroundColor: CHART_COLORS[i], pointRadius: 4, pointHoverRadius: 6,
+      backgroundColor: CHART_COLORS[i] + "14", borderWidth: 2.5, tension: 0.4,
+      fill: true, pointBackgroundColor: "#fff", pointBorderColor: CHART_COLORS[i],
+      pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 7,
     })) },
-    options: { maintainAspectRatio: false, plugins: { legend: { position: "top", labels: { usePointStyle: true, padding: 16, font: { family: "Manrope", weight: "700", size: 11 } } } },
-      scales: { x: { grid: { display: false }, ticks: { color: "#6b7a96", font: { family: "Manrope" } } },
-                y: { grid: { color: "rgba(107,122,150,.12)" }, ticks: { color: "#6b7a96", font: { family: "Manrope" } } } } },
+    options: { maintainAspectRatio: false, animation: { duration: 700, easing: "easeOutQuart" },
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "top", labels: { usePointStyle: true, pointStyle: "circle", padding: 18, font: { family: "Manrope", weight: "700", size: 11 } } },
+        tooltip: { backgroundColor: "rgba(15,23,42,0.88)", titleFont: { family: "Manrope", weight: "700" }, bodyFont: { family: "Manrope" }, cornerRadius: 8, padding: 10 } },
+      scales: { x: { grid: { display: false }, ticks: { color: "#94a3b8", font: { family: "Manrope", size: 11 } } },
+                y: { grid: { color: "rgba(148,163,184,.10)", drawBorder: false }, ticks: { color: "#94a3b8", font: { family: "Manrope", size: 11 } } } } },
   });
 }
 
@@ -500,12 +507,15 @@ function barChart(canvasId, name, labels, datasets) {
     type: "bar",
     data: { labels, datasets: datasets.map((d, i) => ({
       label: d.label, data: d.values,
-      backgroundColor: d.values.map((_, j) => CHART_COLORS[(i + j) % CHART_COLORS.length]),
-      borderRadius: 8, borderSkipped: false,
+      backgroundColor: d.values.map((_, j) => CHART_COLORS[(i + j) % CHART_COLORS.length] + "cc"),
+      hoverBackgroundColor: d.values.map((_, j) => CHART_COLORS[(i + j) % CHART_COLORS.length]),
+      borderRadius: 6, borderSkipped: false, maxBarThickness: 48,
     })) },
-    options: { maintainAspectRatio: false, plugins: { legend: { display: datasets.length > 1, position: "top", labels: { usePointStyle: true, padding: 14, font: { family: "Manrope", weight: "700", size: 11 } } } },
-      scales: { x: { grid: { display: false }, ticks: { color: "#6b7a96", font: { family: "Manrope" } } },
-                y: { grid: { color: "rgba(107,122,150,.12)" }, ticks: { color: "#6b7a96", font: { family: "Manrope" } } } } },
+    options: { maintainAspectRatio: false, animation: { duration: 600, easing: "easeOutQuart" },
+      plugins: { legend: { display: datasets.length > 1, position: "top", labels: { usePointStyle: true, pointStyle: "rectRounded", padding: 16, font: { family: "Manrope", weight: "700", size: 11 } } },
+        tooltip: { backgroundColor: "rgba(15,23,42,0.88)", titleFont: { family: "Manrope", weight: "700" }, bodyFont: { family: "Manrope" }, cornerRadius: 8, padding: 10 } },
+      scales: { x: { grid: { display: false }, ticks: { color: "#94a3b8", font: { family: "Manrope", size: 11 } } },
+                y: { grid: { color: "rgba(148,163,184,.10)", drawBorder: false }, ticks: { color: "#94a3b8", font: { family: "Manrope", size: 11 } } } } },
   });
 }
 
@@ -515,9 +525,10 @@ function doughnutChart(canvasId, name, labels, values) {
   if (!canvas || typeof Chart === "undefined") return;
   state.charts[name] = new Chart(canvas, {
     type: "doughnut",
-    data: { labels, datasets: [{ data: values, backgroundColor: CHART_COLORS, borderWidth: 0, hoverOffset: 6 }] },
-    options: { maintainAspectRatio: false, cutout: "68%",
-      plugins: { legend: { position: "right", labels: { usePointStyle: true, padding: 12, font: { family: "Manrope", weight: "600", size: 11 } } } } },
+    data: { labels, datasets: [{ data: values, backgroundColor: CHART_COLORS.map(c => c + "cc"), hoverBackgroundColor: CHART_COLORS, borderWidth: 0, hoverOffset: 8 }] },
+    options: { maintainAspectRatio: false, cutout: "72%", animation: { duration: 700, easing: "easeOutQuart" },
+      plugins: { legend: { position: "right", labels: { usePointStyle: true, pointStyle: "circle", padding: 14, font: { family: "Manrope", weight: "600", size: 11 } } },
+        tooltip: { backgroundColor: "rgba(15,23,42,0.88)", titleFont: { family: "Manrope", weight: "700" }, bodyFont: { family: "Manrope" }, cornerRadius: 8, padding: 10 } } },
   });
 }
 
@@ -558,8 +569,30 @@ function cardHeader(title, subtitle = "", actions = "") {
   </div>`;
 }
 
+function sectionHeader(title, desc = "", actions = "") {
+  return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+    <div>
+      <div class="section-title">${H(title)}</div>
+      ${desc ? `<div class="section-subtitle">${H(desc)}</div>` : ""}
+    </div>
+    ${actions ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${actions}</div>` : ""}
+  </div>`;
+}
 function emptyState(icon, title, desc = "") {
   return `<div class="empty-state" role="status"><div class="empty-icon" aria-hidden="true">${icon}</div><div class="empty-title">${H(title)}</div>${desc ? `<div class="empty-desc">${H(desc)}</div>` : ""}</div>`;
+}
+
+function greetingBanner(name, roleLabel = "") {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const firstName = String(name || "").split(" ")[0];
+  return `<div class="greeting-banner">
+    <div>
+      <div class="greeting-title">${getGreeting()}, ${H(firstName)} 👋</div>
+      <div class="greeting-sub">${roleLabel ? H(roleLabel) + " \u00b7 " : ""}Here's your dashboard overview</div>
+    </div>
+    <div class="greeting-date">${H(dateStr)}</div>
+  </div>`;
 }
 
 function statCard(value, label, icon, color = "c-orange", trend = "", clickTarget = "") {
@@ -754,17 +787,19 @@ function renderStudent() {
   if (badge) { badge.textContent = pending.length; badge.classList.toggle("hidden", pending.length === 0); }
 
   // ── Home ──────────────────────────────────────────────────────
+  const upcomingAssignments = pending.slice(0, 3);
   byId("overviewSection").innerHTML = `
+    ${greetingBanner(p.name, `${(p.details?.program || "").split("(")[0].trim()} · Semester ${p.details?.semester || ""}`)}
     <div class="stats-grid">
       ${statCard(`${att.overallPercentage ?? 0}%`, "Attendance", "📋", att.overallPercentage >= 75 ? "c-green" : att.overallPercentage >= 60 ? "c-yellow" : "c-orange", progressBar(att.overallPercentage || 0), "attendanceSection")}
       ${statCard(p.details?.cgpa ?? "—", "CGPA", "🏆", "c-blue", `Rank #${p.details?.rank_position ?? "—"}`, "resultsSection")}
-      ${statCard(pending.length, "Pending Assignments", "📝", "c-yellow", `${(d.assignments || []).length} total`, "assignmentsSection")}
+      ${statCard(pending.length, "Pending Tasks", "📝", "c-yellow", `${(d.assignments || []).length} total`, "assignmentsSection")}
       ${statCard(pendingFees.length, "Pending Fees", "💰", pendingFees.length > 0 ? "c-red" : "c-green", `${fees.filter(f => f.status === "paid").length} paid`, "careerSection")}
     </div>
     <div class="g2">
       <div class="card card-p">
         ${cardHeader("Today's Schedule", formatLongDate(state.filters.timetableDate), `<button class="btn btn-ghost btn-sm" data-jump="timetableSection">Full view →</button>`)}
-        ${tItems.length ? `<div style="display:flex;flex-direction:column;gap:8px">
+        ${tItems.length ? `<div style="display:flex;flex-direction:column;gap:10px">
           ${tItems.map(s => `<div class="tt-slot ${s.status === "cancelled" ? "tt-cancelled" : s.status === "updated" ? "tt-updated" : ""}">
             <div class="tt-time">${H(s.start_time)}–${H(s.end_time)}</div>
             <div class="tt-info">
@@ -778,30 +813,52 @@ function renderStudent() {
       </div>
       <div style="display:flex;flex-direction:column;gap:14px">
         <div class="card card-p">
-          <div class="card-kicker">CGPA Trend</div>
+          <div class="card-kicker">Academic Progress</div>
           <div class="chart-wrap"><canvas id="cgpaTrendChart"></canvas></div>
         </div>
-        <div class="card card-p">
-          <div class="card-title" style="margin-bottom:12px">Quick Navigate</div>
-          <div class="shortcut-grid">
-            ${[["📋","Attendance","attendanceSection"],["🗓","Timetable","timetableSection"],["🏆","Results","resultsSection"],["📝","Assignments","assignmentsSection"],["🏫","Campus Desk","campusDeskSection"],["💼","Career","careerSection"],["📬","Requests","requestsSection"],["👤","Profile","profileSection"]]
-              .map(([icon, label, target]) => `<button class="shortcut-tile" data-jump="${target}"><div class="shortcut-icon">${icon}</div><div class="shortcut-label">${label}</div></button>`).join("")}
+        ${upcomingAssignments.length ? `<div class="card card-p">
+          ${cardHeader("Upcoming Deadlines", `${pending.length} pending`, `<button class="btn btn-ghost btn-xs" data-jump="assignmentsSection">View all →</button>`)}
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${upcomingAssignments.map(a => {
+              const daysLeft = Math.ceil((new Date(a.due_date) - new Date()) / 86400000);
+              const dlClass = daysLeft < 0 ? "dl-overdue" : daysLeft <= 2 ? "dl-urgent" : "dl-ok";
+              const dlText = daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? "Due today" : `${daysLeft}d left`;
+              return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--b);border-radius:var(--r-8);background:var(--s0)">
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:700;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${H(a.title)}</div>
+                  <div style="font-size:.72rem;color:var(--t3);margin-top:1px">${H(a.course_code || "")}</div>
+                </div>
+                <span class="deadline-chip ${dlClass}">${dlText}</span>
+              </div>`;
+            }).join("")}
           </div>
-        </div>
+        </div>` : ""}
       </div>
     </div>
-    ${(d.notices || []).length ? `<div class="card card-p">
-      ${cardHeader("Latest Notices", "Campus announcements")}
-      <div style="display:flex;flex-direction:column;gap:8px">
-        ${(d.notices || []).slice(0, 4).map(n => `<div class="notice-card nc-${n.priority || "medium"}" data-action="open-campus-notices" style="cursor:pointer">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-            <div><div class="notice-title">${H(n.title)}</div><div class="notice-meta">${H(n.published_by || "")} · ${formatDate(n.created_at)}</div></div>
-            ${statusBadge(n.priority || "medium")}
-          </div>
-          <div class="notice-body">${H(n.message)}</div>
-        </div>`).join("")}
+    <div class="g2">
+      <div class="card card-p">
+        <div class="card-title" style="margin-bottom:14px">Quick Navigate</div>
+        <div class="shortcut-grid">
+          ${[["📋","Attendance","attendanceSection"],["🗓","Timetable","timetableSection"],["🏆","Results","resultsSection"],["📝","Assignments","assignmentsSection"],["🏫","Campus Desk","campusDeskSection"],["💼","Career","careerSection"],["📬","Requests","requestsSection"],["👤","Profile","profileSection"]]
+            .map(([icon, label, target]) => `<button class="shortcut-tile" data-jump="${target}"><div class="shortcut-icon">${icon}</div><div class="shortcut-label">${label}</div></button>`).join("")}
+        </div>
       </div>
-    </div>` : ""}
+      ${(d.notices || []).length ? `<div class="card card-p">
+        ${cardHeader("Latest Notices", "Campus announcements", `<button class="btn btn-ghost btn-xs" data-action="open-campus-notices">View all →</button>`)}
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${(d.notices || []).slice(0, 3).map(n => `<div class="notice-card nc-${n.priority || "medium"}" data-action="open-campus-notices" style="cursor:pointer">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+              <div><div class="notice-title">${H(n.title)}</div><div class="notice-meta">${H(n.published_by || "")} · ${formatDate(n.created_at)}</div></div>
+              ${statusBadge(n.priority || "medium")}
+            </div>
+            <div class="notice-body">${H(n.message)}</div>
+          </div>`).join("")}
+        </div>
+      </div>` : `<div class="card card-p">
+        ${cardHeader("Campus Updates")}
+        ${emptyState("📢", "No notices yet", "Check back soon for announcements")}
+      </div>`}
+    </div>
   `;
   lineChart("cgpaTrendChart", "cgpaTrend", (d.results?.summary || []).map(s => `Sem ${s.semester}`), [{ label: "CGPA", values: (d.results?.summary || []).map(s => s.cgpa) }, { label: "SGPA", values: (d.results?.summary || []).map(s => s.sgpa) }]);
 
@@ -1555,6 +1612,7 @@ function renderTeacher() {
 
   // ── Teacher Home ──────────────────────────────────────────────
   byId("overviewSection").innerHTML = `
+    ${greetingBanner(p.name, p.details?.designation || "Faculty")}
     <div class="stats-grid">
       ${statCard(courses.length, "My Courses", "📚", "c-blue", "This semester", "attendanceSection")}
       ${statCard(d.kpis?.students ?? roster.length, "Total Students", "👥", "c-green", "Across sections", "rosterSection")}
@@ -2107,6 +2165,7 @@ function renderAdmin() {
 
   // ── Admin Home ────────────────────────────────────────────────
   byId("overviewSection").innerHTML = `
+    ${greetingBanner(p.name, "Administrator")}
     <div class="stats-grid">
       ${statCard(d.kpis?.students ?? 0, "Students", "🎓", "c-blue", "", "usersSection")}
       ${statCard(d.kpis?.teachers ?? 0, "Faculty", "👨‍🏫", "c-orange", "", "usersSection")}
@@ -2128,8 +2187,8 @@ function renderAdmin() {
             ["Courses Under Review", courses.filter(c => c.status === "review").length, "badge-warning", "coursesSection"],
             ["Active Notices", notices.filter(n => n.active).length, "badge-success", "noticesSection"],
             ["Total Users", users.filter(u => u.status === "active").length, "badge-info", "usersSection"],
-          ].map(([label, val, cls, target]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid rgba(221,215,204,.4)">
-            <div style="font-size:.88rem;font-weight:600">${label}</div>
+          ].map(([label, val, cls, target]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--b)">
+            <div style="font-size:.86rem;font-weight:600">${label}</div>
             <div style="display:flex;gap:8px;align-items:center">
               <span class="badge ${cls}">${val}</span>
               <button class="btn btn-ghost btn-xs" data-jump="${target}">View →</button>
@@ -2141,13 +2200,15 @@ function renderAdmin() {
     ${(d.auditLogs || []).length ? `<div class="card card-p">
       ${cardHeader("Recent Activity", "Latest system actions", `<button class="btn btn-ghost btn-sm" data-jump="activitySection">View all →</button>`)}
       <div>
-        ${(d.auditLogs || []).slice(0, 6).map(l => `<div class="feed-item">
-          <div class="feed-icon">🔧</div>
+        ${(d.auditLogs || []).slice(0, 6).map(l => {
+          const feedIcon = {"create": "✨", "update": "📝", "delete": "🗑️", "login": "🔐", "approve": "✅", "reject": "❌", "assign": "👤"}[l.action?.split("_")[0]] || "🔧";
+          return `<div class="feed-item">
+          <div class="feed-icon">${feedIcon}</div>
           <div class="feed-body">
             <div class="feed-text"><strong>${H(l.actor_name)}</strong> — ${H(l.action)}</div>
             <div class="feed-meta">${H(l.entity_type)} · ${formatDateTime(l.created_at)}</div>
           </div>
-        </div>`).join("")}
+        </div>`}).join("")}
       </div>
     </div>` : ""}
   `;
